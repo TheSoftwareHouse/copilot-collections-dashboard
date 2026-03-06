@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build output
+.next
+dist
+out
+
+# Version control
+.git
+.gitignore
+
+# Test files
+e2e/
+test-results/
+playwright-report/
+vitest.config.ts
+playwright.config.ts
+playwright.azure.config.ts
+src/**/__tests__/
+src/test/
+
+# Documentation & specs
+specifications/
+*.md
+!README.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Docker
+docker-compose.yml
+docker/
+Dockerfile
+.dockerignore

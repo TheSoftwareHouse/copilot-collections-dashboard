@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run carry-forward unit tests",
+			"type": "shell",
+			"command": "npx vitest run src/lib/__tests__/team-carry-forward.test.ts 2>&1 | tail -25"
+		},
+		{
+			"label": "Run carry-forward tests",
+			"type": "shell",
+			"command": "npx vitest run src/lib/__tests__/team-carry-forward.test.ts 2>&1 | tail -30"
+		},
+		{
+			"label": "Run route tests",
+			"type": "shell",
+			"command": "npx vitest run src/app/api/jobs/__tests__/team-carry-forward.route.test.ts 2>&1 | tail -15"
+		},
+		{
+			"label": "Run job-status tests",
+			"type": "shell",
+			"command": "npx vitest run src/app/api/job-status/__tests__/route.test.ts"
+		}
+	]
+}
