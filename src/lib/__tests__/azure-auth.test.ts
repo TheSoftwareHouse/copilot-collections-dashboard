@@ -214,4 +214,43 @@ describe("azure-auth", () => {
       );
     });
   });
+
+  // ── mapAzureRolesToAppRole() ───────────────────────────────────
+
+  describe("mapAzureRolesToAppRole()", () => {
+    it("returns ADMIN when roles contains 'Admin'", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(["Admin"])).toBe("admin");
+    });
+
+    it("returns ADMIN when 'Admin' is among multiple roles", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(["Admin", "Reader"])).toBe("admin");
+    });
+
+    it("returns USER when roles do not contain 'Admin'", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(["User"])).toBe("user");
+    });
+
+    it("returns ADMIN for lowercase 'admin' (case-insensitive)", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(["admin"])).toBe("admin");
+    });
+
+    it("returns ADMIN for mixed case 'ADMIN' (case-insensitive)", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(["ADMIN"])).toBe("admin");
+    });
+
+    it("returns USER when roles is empty array", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole([])).toBe("user");
+    });
+
+    it("returns USER when roles is undefined", async () => {
+      const { mapAzureRolesToAppRole } = await loadModule();
+      expect(mapAzureRolesToAppRole(undefined)).toBe("user");
+    });
+  });
 });

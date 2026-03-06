@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import MonthFilter from "@/components/dashboard/MonthFilter";
 import DepartmentMemberChart from "@/components/usage/DepartmentMemberChart";
 import TeamMemberTable from "@/components/usage/TeamMemberTable";
+import DepartmentDetailStatsCards from "@/components/usage/DepartmentDetailStatsCards";
 import UsageBreadcrumb from "@/components/usage/UsageBreadcrumb";
 import { UsageProgressBar } from "@/components/usage/UsageProgressBar";
 import { MONTH_NAMES } from "@/lib/constants";
@@ -112,25 +113,29 @@ export default function DepartmentDetailPanel({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12" role="status">
-        <p className="text-sm text-gray-500">
-          Loading department usage data…
-        </p>
+      <div className="space-y-6">
+        <DepartmentDetailStatsCards departmentId={departmentId} month={month} year={year} />
+        <div className="flex items-center justify-center py-12" role="status">
+          <p className="text-sm text-gray-500">
+            Loading department usage data…
+          </p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div>
+      <div className="space-y-6">
         <UsageBreadcrumb
           section="department"
           entityName="Error"
           month={month}
           year={year}
         />
+        <DepartmentDetailStatsCards departmentId={departmentId} month={month} year={year} />
         <div
-          className="mt-4 rounded-lg border border-red-200 bg-red-50 p-6"
+          className="rounded-lg border border-red-200 bg-red-50 p-6"
           role="alert"
         >
           <p className="text-sm text-red-700">{error}</p>
@@ -183,6 +188,9 @@ export default function DepartmentDetailPanel({
           disabled={loadingMonths}
         />
       </div>
+
+      {/* Stats Cards */}
+      <DepartmentDetailStatsCards departmentId={departmentId} month={month} year={year} />
 
       {!hasMembers ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

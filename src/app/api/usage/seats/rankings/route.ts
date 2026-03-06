@@ -26,35 +26,6 @@ export async function GET(request: NextRequest) {
     const dataSource = await getDb();
     const premiumRequestsPerSeat = await getPremiumAllowance();
 
-    const rankingSql = `WITH seat_requests AS (
-         SELECT
-           cu."seatId",
-           SUM((item->>'grossQuantity')::numeric) AS total_requests
-         FROM copilot_usage cu,
-              jsonb_array_elements(cu."usageItems") AS item
-         WHERE cu."month" = $1 AND cu."year" = $2
-         GROUP BY cu."seatId"
-       ),
-       seat_usage AS (
-         SELECT
-           sr."seatId",
-           sr.total_requests,
-           CASE WHEN $3 > 0
-             THEN sr.total_requests / $3 * 100
-             ELSE 0
-           END AS usage_percent
-         FROM seat_requests sr
-       )
-       SELECT
-         su."seatId",
-         cs."githubUsername",
-         cs."firstName",
-         cs."lastName",
-         ROUND(su.total_requests::numeric, 0)   AS "totalRequests",
-         ROUND(su.usage_percent::numeric, 1)     AS "usagePercent"
-       FROM seat_usage su
-       JOIN copilot_seat cs ON cs.id = su."seatId"`;
-
     type RankingRow = {
       seatId: number;
       githubUsername: string;
@@ -62,22 +33,52 @@ export async function GET(request: NextRequest) {
       lastName: string | null;
       totalRequests: string;
       usagePercent: string;
+      rank_desc: string;
+      rank_asc: string;
     };
 
-    const params = [month, year, premiumRequestsPerSeat];
-
-    const mostActiveRows: RankingRow[] = await dataSource.query(
-      `${rankingSql}
-       ORDER BY su.usage_percent DESC, su.total_requests DESC
-       LIMIT 5`,
-      params,
-    );
-
-    const leastActiveRows: RankingRow[] = await dataSource.query(
-      `${rankingSql}
-       ORDER BY su.usage_percent ASC, su.total_requests ASC
-       LIMIT 5`,
-      params,
+    const rows: RankingRow[] = await dataSource.query(
+      `WITH seat_requests AS (
+         SELECT
+           cs.id AS "seatId",
+           cs."githubUsername",
+           cs."firstName",
+           cs."lastName",
+           COALESCE(SUM((item->>'grossQuantity')::numeric), 0) AS total_requests
+         FROM copilot_seat cs
+         LEFT JOIN copilot_usage cu
+           ON cu."seatId" = cs.id AND cu."month" = $1 AND cu."year" = $2
+         LEFT JOIN LATERAL jsonb_array_elements(cu."usageItems") AS item ON true
+         WHERE cs.status = 'active'
+         GROUP BY cs.id, cs."githubUsername", cs."firstName", cs."lastName"
+       ),
+       ranked AS (
+         SELECT
+           sr."seatId",
+           sr."githubUsername",
+           sr."firstName",
+           sr."lastName",
+           ROUND(sr.total_requests::numeric, 0) AS "totalRequests",
+           ROUND(
+             CASE WHEN $3 > 0
+               THEN sr.total_requests / $3 * 100
+               ELSE 0
+             END::numeric, 1
+           ) AS "usagePercent",
+           ROW_NUMBER() OVER (ORDER BY
+             CASE WHEN $3 > 0 THEN sr.total_requests / $3 * 100 ELSE 0 END DESC,
+             sr.total_requests DESC
+           ) AS rank_desc,
+           ROW_NUMBER() OVER (ORDER BY
+             CASE WHEN $3 > 0 THEN sr.total_requests / $3 * 100 ELSE 0 END ASC,
+             sr.total_requests ASC
+           ) AS rank_asc
+         FROM seat_requests sr
+       )
+       SELECT *
+       FROM ranked
+       WHERE rank_desc <= 5 OR rank_asc <= 5`,
+      [month, year, premiumRequestsPerSeat],
     );
 
     const mapRow = (row: RankingRow) => ({
@@ -89,9 +90,18 @@ export async function GET(request: NextRequest) {
       usagePercent: Number(row.usagePercent),
     });
 
+    const mostActive = rows
+      .filter((r) => Number(r.rank_desc) <= 5)
+      .sort((a, b) => Number(a.rank_desc) - Number(b.rank_desc))
+      .map(mapRow);
+    const leastActive = rows
+      .filter((r) => Number(r.rank_asc) <= 5)
+      .sort((a, b) => Number(a.rank_asc) - Number(b.rank_asc))
+      .map(mapRow);
+
     return NextResponse.json({
-      mostActive: mostActiveRows.map(mapRow),
-      leastActive: leastActiveRows.map(mapRow),
+      mostActive,
+      leastActive,
       month,
       year,
     });

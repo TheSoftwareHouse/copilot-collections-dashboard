@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAsyncFetch } from "@/lib/hooks/useAsyncFetch";
 import TeamUsageTable from "@/components/usage/TeamUsageTable";
+import TeamUsageStatsCards from "@/components/usage/TeamUsageStatsCards";
+import TeamUsageRankings from "@/components/usage/TeamUsageRankings";
 
 export interface TeamUsageEntry {
   teamId: number;
@@ -91,6 +93,8 @@ export default function TeamUsagePanel({ month, year }: TeamUsagePanelProps) {
   if (loading) {
     return (
       <div className="space-y-4">
+        <TeamUsageStatsCards month={month} year={year} />
+        <TeamUsageRankings month={month} year={year} />
         {searchBox}
         <div className="flex items-center justify-center py-12" role="status">
           <p className="text-sm text-gray-500">Loading team usage data…</p>
@@ -102,6 +106,8 @@ export default function TeamUsagePanel({ month, year }: TeamUsagePanelProps) {
   if (error) {
     return (
       <div className="space-y-4">
+        <TeamUsageStatsCards month={month} year={year} />
+        <TeamUsageRankings month={month} year={year} />
         {searchBox}
         <div
           className="rounded-lg border border-red-200 bg-red-50 p-6"
@@ -116,6 +122,8 @@ export default function TeamUsagePanel({ month, year }: TeamUsagePanelProps) {
   if (!data || data.total === 0) {
     return (
       <div className="space-y-4">
+        <TeamUsageStatsCards month={month} year={year} />
+        <TeamUsageRankings month={month} year={year} />
         {searchBox}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-500">
@@ -130,6 +138,8 @@ export default function TeamUsagePanel({ month, year }: TeamUsagePanelProps) {
   if (filteredTeams && filteredTeams.length === 0) {
     return (
       <div className="space-y-4">
+        <TeamUsageStatsCards month={month} year={year} />
+        <TeamUsageRankings month={month} year={year} />
         {searchBox}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-500">
@@ -142,6 +152,8 @@ export default function TeamUsagePanel({ month, year }: TeamUsagePanelProps) {
 
   return (
     <div className="space-y-4">
+      <TeamUsageStatsCards month={month} year={year} />
+      <TeamUsageRankings month={month} year={year} />
       {searchBox}
       <TeamUsageTable teams={filteredTeams ?? data.teams} month={month} year={year} />
     </div>

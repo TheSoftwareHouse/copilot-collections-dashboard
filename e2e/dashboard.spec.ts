@@ -23,13 +23,13 @@ async function seedDashboardSummary() {
   ]);
 
   const mostActiveUsers = JSON.stringify([
-    { githubUsername: "top-user-1", firstName: "Alice", lastName: "Smith", totalRequests: 500, totalSpending: 125.50 },
-    { githubUsername: "top-user-2", firstName: "Bob", lastName: "Jones", totalRequests: 350, totalSpending: 87.25 },
+    { seatId: 101, githubUsername: "top-user-1", firstName: "Alice", lastName: "Smith", totalRequests: 500, totalSpending: 125.50 },
+    { seatId: 102, githubUsername: "top-user-2", firstName: "Bob", lastName: "Jones", totalRequests: 350, totalSpending: 87.25 },
   ]);
 
   const leastActiveUsers = JSON.stringify([
-    { githubUsername: "low-user-1", firstName: "Charlie", lastName: "Brown", totalRequests: 10, totalSpending: 2.50 },
-    { githubUsername: "low-user-2", firstName: null, lastName: null, totalRequests: 25, totalSpending: 6.25 },
+    { seatId: 201, githubUsername: "low-user-1", firstName: "Charlie", lastName: "Brown", totalRequests: 10, totalSpending: 2.50 },
+    { seatId: 202, githubUsername: "low-user-2", firstName: null, lastName: null, totalRequests: 25, totalSpending: 6.25 },
   ]);
 
   const client = await getClient();
@@ -75,8 +75,8 @@ async function seedSummaryForMonth(
     totalPremiumRequests = 1200,
     includedPremiumRequestsUsed = 900,
     modelUsage = [{ model: "GPT-4o", totalRequests: 50, totalAmount: 200.0 }],
-    mostActiveUsers = [{ githubUsername: "user-1", firstName: "Test", lastName: "User", totalRequests: 100, totalSpending: 50.0 }],
-    leastActiveUsers = [{ githubUsername: "user-2", firstName: "Low", lastName: "User", totalRequests: 5, totalSpending: 2.0 }],
+    mostActiveUsers = [{ seatId: 1, githubUsername: "user-1", firstName: "Test", lastName: "User", totalRequests: 100, totalSpending: 50.0 }],
+    leastActiveUsers = [{ seatId: 2, githubUsername: "user-2", firstName: "Low", lastName: "User", totalRequests: 5, totalSpending: 2.0 }],
   } = overrides;
 
   const client = await getClient();
@@ -175,24 +175,6 @@ test.describe("Dashboard", () => {
     await expect(mostActiveCard.getByRole("img", { name: /usage/i }).first()).toBeVisible();
   });
 
-  test("dashboard displays least active users", async ({ page }) => {
-    await seedDashboardSummary();
-    await loginViaApi(page, "admin", "password123");
-    await page.goto("/dashboard");
-
-    await expect(
-      page.getByRole("heading", { name: /least active users/i }),
-    ).toBeVisible();
-    await expect(page.getByText("low-user-1")).toBeVisible();
-    await expect(page.getByText("Charlie Brown")).toBeVisible();
-    await expect(page.getByText("low-user-2")).toBeVisible();
-
-    // Usage status indicators should appear next to usernames
-    const leastActiveHeading = page.getByRole("heading", { name: /least active users/i });
-    const leastActiveCard = leastActiveHeading.locator("../..");
-    await expect(leastActiveCard.getByRole("img", { name: /usage/i }).first()).toBeVisible();
-  });
-
   test("overcap user on most active list has correct usage indicator", async ({ page }) => {
     // top-user-1 has 500 requests against 300 premiumRequestsPerSeat (167%)
     await seedDashboardSummary();
@@ -283,7 +265,7 @@ test.describe("Dashboard", () => {
       totalPremiumRequests: 0,
       includedPremiumRequestsUsed: 0,
       modelUsage: [{ model: "GPT-4o", totalRequests: 1, totalAmount: 1.0 }],
-      mostActiveUsers: [{ githubUsername: "user-1", firstName: "Test", lastName: "User", totalRequests: 1, totalSpending: 1.0 }],
+      mostActiveUsers: [{ seatId: 1, githubUsername: "user-1", firstName: "Test", lastName: "User", totalRequests: 1, totalSpending: 1.0 }],
       leastActiveUsers: [],
     });
 
@@ -482,10 +464,10 @@ test.describe("Dashboard — Month Filter", () => {
         { model: "Claude Haiku 4.5", totalRequests: 200, totalAmount: 800.0 },
       ],
       mostActiveUsers: [
-        { githubUsername: "prev-top-user", firstName: "Prev", lastName: "Top", totalRequests: 300, totalSpending: 150.0 },
+        { seatId: 3, githubUsername: "prev-top-user", firstName: "Prev", lastName: "Top", totalRequests: 300, totalSpending: 150.0 },
       ],
       leastActiveUsers: [
-        { githubUsername: "prev-low-user", firstName: "Prev", lastName: "Low", totalRequests: 2, totalSpending: 1.0 },
+        { seatId: 4, githubUsername: "prev-low-user", firstName: "Prev", lastName: "Low", totalRequests: 2, totalSpending: 1.0 },
       ],
     });
 
@@ -542,4 +524,17 @@ test.describe("Dashboard — Month Filter", () => {
     await expect(options.filter({ hasText: expectedLabel2 })).toHaveCount(1);
     await expect(options.filter({ hasText: expectedLabel3 })).toHaveCount(1);
   });
+
+  test("most active user rows are clickable links to seat detail", async ({ page }) => {
+    await seedDashboardSummary();
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/dashboard");
+
+    const mostActiveHeading = page.getByRole("heading", { name: /most active users/i });
+    const mostActiveCard = mostActiveHeading.locator("../..");
+    const firstUserLink = mostActiveCard.getByRole("link", { name: /top-user-1/i });
+    await expect(firstUserLink).toBeVisible();
+    await expect(firstUserLink).toHaveAttribute("href", /\/usage\/seats\/101\?month=\d+&year=\d+/);
+  });
+
 });

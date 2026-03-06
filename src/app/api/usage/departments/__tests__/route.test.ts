@@ -260,7 +260,7 @@ describe("GET /api/usage/departments", () => {
     expect(json.year).toBe(currentYear);
   });
 
-  it("departments ordered by usagePercent ASC (lowest first)", async () => {
+  it("departments ordered by usagePercent DESC (highest first)", async () => {
     await seedAuthSession();
 
     // Dept A: 1 member, 300 requests → capped: 300/300 = 100%
@@ -287,13 +287,13 @@ describe("GET /api/usage/departments", () => {
     const json = await response.json();
 
     expect(json.departments).toHaveLength(3);
-    // Order: Empty (0%) → Low (30%) → High (100%)
-    expect(json.departments[0].departmentName).toBe("Empty Dept");
-    expect(json.departments[0].usagePercent).toBe(0);
+    // Order: High (100%) → Low (30%) → Empty (0%)
+    expect(json.departments[0].departmentName).toBe("High Dept");
+    expect(json.departments[0].usagePercent).toBe(100);
     expect(json.departments[1].departmentName).toBe("Low Dept");
     expect(json.departments[1].usagePercent).toBe(30);
-    expect(json.departments[2].departmentName).toBe("High Dept");
-    expect(json.departments[2].usagePercent).toBe(100);
+    expect(json.departments[2].departmentName).toBe("Empty Dept");
+    expect(json.departments[2].usagePercent).toBe(0);
   });
 
   it("usagePercent uses capped per-seat requests — member exceeding cap", async () => {

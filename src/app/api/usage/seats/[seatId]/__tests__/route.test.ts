@@ -5,6 +5,9 @@ import { NextRequest } from "next/server";
 import { CopilotSeatEntity, type CopilotSeat } from "@/entities/copilot-seat.entity";
 import { CopilotUsageEntity, type CopilotUsage } from "@/entities/copilot-usage.entity";
 import { SeatStatus } from "@/entities/enums";
+import { TeamEntity, type Team } from "@/entities/team.entity";
+import { TeamMemberSnapshotEntity } from "@/entities/team-member-snapshot.entity";
+import { DepartmentEntity } from "@/entities/department.entity";
 import {
   getTestDataSource,
   cleanDatabase,
@@ -72,6 +75,21 @@ async function seedUsage(
 ): Promise<CopilotUsage> {
   const usageRepo = testDs.getRepository(CopilotUsageEntity);
   return usageRepo.save(overrides as Partial<CopilotUsage>);
+}
+
+async function seedDepartment(name: string) {
+  const repo = testDs.getRepository(DepartmentEntity);
+  return repo.save(repo.create({ name }));
+}
+
+async function seedTeam(name: string, overrides?: Partial<Team>) {
+  const repo = testDs.getRepository(TeamEntity);
+  return repo.save(repo.create({ name, ...overrides }));
+}
+
+async function seedTeamMemberSnapshot(teamId: number, seatId: number, month: number, year: number) {
+  const repo = testDs.getRepository(TeamMemberSnapshotEntity);
+  return repo.save(repo.create({ teamId, seatId, month, year }));
 }
 
 describe("GET /api/usage/seats/[seatId]", () => {
@@ -154,6 +172,8 @@ describe("GET /api/usage/seats/[seatId]", () => {
 
     expect(json.dailyUsage).toEqual([]);
     expect(json.modelBreakdown).toEqual([]);
+    expect(json.seat.departmentId).toBeNull();
+    expect(json.teams).toEqual([]);
 
     expect(json.month).toBe(2);
     expect(json.year).toBe(2026);
@@ -319,6 +339,138 @@ describe("GET /api/usage/seats/[seatId]", () => {
 
     expect(json.month).toBe(currentMonth);
     expect(json.year).toBe(currentYear);
+  });
+
+  it("includes departmentId in seat info when seat has a department", async () => {
+    await seedAuthSession();
+
+    const dept = await seedDepartment("Engineering");
+    const seat = await seedSeat({
+      githubUsername: "dept-user",
+      githubUserId: 6001,
+      departmentId: dept.id,
+    });
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.seat.departmentId).toBe(dept.id);
+  });
+
+  it("returns departmentId as null when seat has no department", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "no-dept-user",
+      githubUserId: 6002,
+    });
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.seat.departmentId).toBeNull();
+  });
+
+  it("returns teams array with team memberships for the selected month", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "team-user",
+      githubUserId: 6003,
+    });
+    const team = await seedTeam("Alpha Team");
+    await seedTeamMemberSnapshot(team.id, seat.id, 2, 2026);
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.teams).toHaveLength(1);
+    expect(json.teams[0].teamId).toBe(team.id);
+    expect(json.teams[0].teamName).toBe("Alpha Team");
+  });
+
+  it("returns empty teams array when seat has no team memberships", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "no-team-user",
+      githubUserId: 6004,
+    });
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.teams).toEqual([]);
+  });
+
+  it("excludes soft-deleted teams from teams array", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "deleted-team-user",
+      githubUserId: 6005,
+    });
+    const deletedTeam = await seedTeam("Deleted Team", { deletedAt: new Date() });
+    await seedTeamMemberSnapshot(deletedTeam.id, seat.id, 2, 2026);
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.teams).toEqual([]);
+  });
+
+  it("returns teams only for the selected month/year", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "month-filter-user",
+      githubUserId: 6006,
+    });
+    const teamFeb = await seedTeam("Feb Team");
+    const teamMar = await seedTeam("Mar Team");
+    await seedTeamMemberSnapshot(teamFeb.id, seat.id, 2, 2026);
+    await seedTeamMemberSnapshot(teamMar.id, seat.id, 3, 2026);
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.teams).toHaveLength(1);
+    expect(json.teams[0].teamName).toBe("Feb Team");
+  });
+
+  it("returns multiple teams when seat belongs to multiple teams", async () => {
+    await seedAuthSession();
+
+    const seat = await seedSeat({
+      githubUsername: "multi-team-user",
+      githubUserId: 6007,
+    });
+    const teamA = await seedTeam("Alpha");
+    const teamB = await seedTeam("Beta");
+    await seedTeamMemberSnapshot(teamA.id, seat.id, 2, 2026);
+    await seedTeamMemberSnapshot(teamB.id, seat.id, 2, 2026);
+
+    const request = makeGetRequest(String(seat.id), { month: "2", year: "2026" });
+    const response = await GET(request as never, makeContext(String(seat.id)) as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    expect(json.teams).toHaveLength(2);
+    // Ordered alphabetically by team name
+    expect(json.teams[0].teamName).toBe("Alpha");
+    expect(json.teams[1].teamName).toBe("Beta");
   });
 
   it("returns premiumRequestsPerSeat as a positive number", async () => {

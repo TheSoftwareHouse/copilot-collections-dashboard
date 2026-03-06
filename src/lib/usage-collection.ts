@@ -10,6 +10,7 @@ import {
 } from "@/entities/copilot-usage.entity";
 import { JobType, JobStatus, SeatStatus } from "@/entities/enums";
 import { fetchPremiumRequestUsage } from "@/lib/github-api";
+import { getInstallationToken, NoOrgConnectedError } from "@/lib/github-app-token";
 import { refreshDashboardMetrics } from "@/lib/dashboard-metrics";
 import { ERROR_MESSAGE_MAX_LENGTH } from "@/lib/constants";
 import { acquireJobLock } from "@/lib/job-lock";
@@ -89,6 +90,18 @@ export async function executeUsageCollection(): Promise<UsageCollectionResult> {
   if (!config) {
     console.warn("Usage collection skipped: configuration not found");
     return { skipped: true, reason: "no_configuration" };
+  }
+
+  // Generate installation access token before acquiring lock
+  let token: string;
+  try {
+    token = await getInstallationToken();
+  } catch (error) {
+    if (error instanceof NoOrgConnectedError) {
+      console.warn(`Usage collection skipped: ${error.message}`);
+      return { skipped: true, reason: "no_org_connected" };
+    }
+    throw error;
   }
 
   // Concurrency guard: atomically check for a running job and create one
@@ -175,12 +188,13 @@ export async function executeUsageCollection(): Promise<UsageCollectionResult> {
         const dates = generateDateRange(startDate, today);
         for (const date of dates) {
           const response = await fetchPremiumRequestUsage({
+            apiMode: config.apiMode,
             entityName: config.entityName,
             username: seat.githubUsername,
             day: date.day,
             month: date.month,
             year: date.year,
-          });
+          }, token);
 
           // Upsert: insert or update on conflict
           await usageRepository

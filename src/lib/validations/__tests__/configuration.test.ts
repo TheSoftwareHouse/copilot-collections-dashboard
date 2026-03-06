@@ -1,6 +1,6 @@
 /// <reference types="vitest/globals" />
 import { describe, it, expect } from "vitest";
-import { configurationSchema } from "@/lib/validations/configuration";
+import { configurationSchema, updateConfigurationSchema } from "@/lib/validations/configuration";
 
 describe("configurationSchema", () => {
   it("accepts valid organisation input", () => {
@@ -132,5 +132,46 @@ describe("configurationSchema", () => {
     if (result.success) {
       expect(result.data.premiumRequestsPerSeat).toBeUndefined();
     }
+  });
+});
+
+describe("updateConfigurationSchema", () => {
+  it("accepts valid premiumRequestsPerSeat values", () => {
+    for (const value of [1, 300, 100000]) {
+      const result = updateConfigurationSchema.safeParse({
+        premiumRequestsPerSeat: value,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects missing premiumRequestsPerSeat", () => {
+    const result = updateConfigurationSchema.safeParse({});
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid premiumRequestsPerSeat values", () => {
+    for (const value of [0, -1, 1.5, 100001]) {
+      const result = updateConfigurationSchema.safeParse({
+        premiumRequestsPerSeat: value,
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it("rejects non-numeric premiumRequestsPerSeat", () => {
+    const result = updateConfigurationSchema.safeParse({
+      premiumRequestsPerSeat: "abc",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("ignores extra fields", () => {
+    const result = updateConfigurationSchema.safeParse({
+      apiMode: "organisation",
+      entityName: "TestOrg",
+      premiumRequestsPerSeat: 300,
+    });
+    expect(result.success).toBe(true);
   });
 });

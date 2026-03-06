@@ -25,13 +25,25 @@ vi.mock("@/lib/github-api", () => ({
   fetchAllCopilotSeats: vi.fn(),
 }));
 
+vi.mock("@/lib/github-app-token", () => ({
+  getInstallationToken: vi.fn(),
+  NoOrgConnectedError: class NoOrgConnectedError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "NoOrgConnectedError";
+    }
+  },
+}));
+
 vi.mock("@/lib/dashboard-metrics", () => ({
   refreshDashboardMetrics: vi.fn(),
 }));
 
 const { executeSeatSync } = await import("@/lib/seat-sync");
 const { fetchAllCopilotSeats } = await import("@/lib/github-api");
+const { getInstallationToken, NoOrgConnectedError } = await import("@/lib/github-app-token");
 const mockedFetchSeats = vi.mocked(fetchAllCopilotSeats);
+const mockedGetToken = vi.mocked(getInstallationToken);
 
 function makeSeatAssignment(
   login: string,
@@ -75,6 +87,7 @@ describe("executeSeatSync", () => {
   beforeEach(async () => {
     await cleanDatabase(testDs);
     vi.clearAllMocks();
+    mockedGetToken.mockResolvedValue("test-installation-token");
   });
 
   it("skips sync when no configuration exists", async () => {
@@ -82,6 +95,23 @@ describe("executeSeatSync", () => {
 
     expect(result.skipped).toBe(true);
     expect(result.reason).toBe("no_configuration");
+
+    // No JobExecution should be created
+    const jobRepo = testDs.getRepository(JobExecutionEntity);
+    const jobs = await jobRepo.find();
+    expect(jobs).toHaveLength(0);
+  });
+
+  it("skips sync when no org is connected", async () => {
+    await seedConfiguration(testDs);
+    mockedGetToken.mockRejectedValueOnce(
+      new NoOrgConnectedError("No GitHub App configured"),
+    );
+
+    const result = await executeSeatSync();
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe("no_org_connected");
 
     // No JobExecution should be created
     const jobRepo = testDs.getRepository(JobExecutionEntity);

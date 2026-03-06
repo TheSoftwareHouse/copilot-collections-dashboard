@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { executeSeatSync } from "@/lib/seat-sync";
 import { handleRouteError } from "@/lib/api-helpers";
 
 export async function POST() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {

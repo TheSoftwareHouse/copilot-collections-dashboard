@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { DepartmentEntity } from "@/entities/department.entity";
 import { CopilotSeatEntity } from "@/entities/copilot-seat.entity";
 import { updateDepartmentSchema } from "@/lib/validations/department";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import {
   parseEntityId,
   invalidIdResponse,
@@ -16,7 +16,7 @@ import { NotFoundError } from "@/lib/errors";
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PUT(request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;
@@ -57,7 +57,7 @@ export async function PUT(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;

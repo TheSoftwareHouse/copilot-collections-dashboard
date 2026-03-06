@@ -103,17 +103,17 @@ function buildSeatsUrl(apiMode: ApiMode, entityName: string): string {
   return `${GITHUB_API_BASE}/enterprises/${encodeURIComponent(entityName)}/copilot/billing/seats`;
 }
 
-export async function fetchAllCopilotSeats(config: {
-  apiMode: ApiMode;
-  entityName: string;
-}): Promise<GitHubSeatAssignment[]> {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error(
-      "GITHUB_TOKEN environment variable is not set. Cannot fetch Copilot seats."
-    );
+function buildUsageUrl(apiMode: ApiMode, entityName: string): string {
+  if (apiMode === ApiMode.ORGANISATION) {
+    return `${GITHUB_API_BASE}/organizations/${encodeURIComponent(entityName)}/settings/billing/premium_request/usage`;
   }
+  return `${GITHUB_API_BASE}/enterprises/${encodeURIComponent(entityName)}/settings/billing/premium_request/usage`;
+}
 
+export async function fetchAllCopilotSeats(
+  config: { apiMode: ApiMode; entityName: string },
+  token: string,
+): Promise<GitHubSeatAssignment[]> {
   const baseUrl = buildSeatsUrl(config.apiMode, config.entityName);
   const allSeats: GitHubSeatAssignment[] = [];
   let page = 1;
@@ -153,27 +153,24 @@ export async function fetchAllCopilotSeats(config: {
   return allSeats;
 }
 
-export async function fetchPremiumRequestUsage(config: {
-  entityName: string;
-  username: string;
-  day: number;
-  month: number;
-  year: number;
-}): Promise<GitHubUsageResponse> {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new Error(
-      "GITHUB_TOKEN environment variable is not set. Cannot fetch premium request usage."
-    );
-  }
-
+export async function fetchPremiumRequestUsage(
+  config: {
+    apiMode: ApiMode;
+    entityName: string;
+    username: string;
+    day: number;
+    month: number;
+    year: number;
+  },
+  token: string,
+): Promise<GitHubUsageResponse> {
   const params = new URLSearchParams({
     user: config.username,
     day: String(config.day),
     month: String(config.month),
     year: String(config.year),
   });
-  const url = `${GITHUB_API_BASE}/organizations/${encodeURIComponent(config.entityName)}/settings/billing/premium_request/usage?${params}`;
+  const url = `${buildUsageUrl(config.apiMode, config.entityName)}?${params}`;
 
   const response = await fetch(url, {
     headers: {

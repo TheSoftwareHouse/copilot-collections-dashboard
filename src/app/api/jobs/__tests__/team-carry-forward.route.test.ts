@@ -36,12 +36,14 @@ const { hashPassword, createSession, SESSION_COOKIE_NAME } = await import(
   "@/lib/auth"
 );
 
-async function seedAuthSession(): Promise<void> {
+async function seedAuthSession(options?: { role?: string }): Promise<void> {
   const { UserEntity } = await import("@/entities/user.entity");
+  const { UserRole } = await import("@/entities/enums");
   const userRepo = testDs.getRepository(UserEntity);
   const user = await userRepo.save({
     username: "testadmin",
     passwordHash: await hashPassword("testpass"),
+    role: options?.role ?? UserRole.ADMIN,
   });
   const token = await createSession(user.id);
   mockCookieStore[SESSION_COOKIE_NAME] = token;
@@ -78,6 +80,15 @@ describe("POST /api/jobs/team-carry-forward", () => {
 
     const body = await response.json();
     expect(body.error).toBe("Authentication required");
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const response = await POST();
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("successfully triggers carry-forward and returns job execution details", async () => {

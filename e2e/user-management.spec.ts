@@ -49,7 +49,7 @@ test.describe("User Management", () => {
     // The admin user should appear in the table
     const table = page.locator("table");
     await expect(table).toBeVisible();
-    await expect(table.getByText("admin")).toBeVisible();
+    await expect(table.getByText("admin", { exact: true })).toBeVisible();
   });
 
   test("admin creates a new user and it appears in the list", async ({
@@ -218,7 +218,7 @@ test.describe("User Management", () => {
 
     // Admin should still be in the list
     const table = page.locator("table");
-    await expect(table.getByText("admin")).toBeVisible();
+    await expect(table.getByText("admin", { exact: true })).toBeVisible();
   });
 
   test("admin deletes another user and they disappear from the list", async ({
@@ -274,5 +274,109 @@ test.describe("User Management", () => {
       page.getByText(/invalid username or password/i)
     ).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
+  });
+
+  test("user list displays role badge for each user", async ({ page }) => {
+    await seedTestUser("viewer", "viewerpass", "user");
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/management?tab=users");
+
+    // Admin user should show "Admin" badge
+    const adminRow = page.locator("tr", { hasText: "admin" });
+    await expect(adminRow.getByLabel("Role: Admin")).toBeVisible();
+
+    // Regular user should show "User" badge
+    const viewerRow = page.locator("tr", { hasText: "viewer" });
+    await expect(viewerRow.getByLabel("Role: User")).toBeVisible();
+  });
+
+  test("admin creates a user with Admin role and badge appears", async ({
+    page,
+  }) => {
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/management?tab=users");
+
+    await page.getByRole("button", { name: /add user/i }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Verify role selector defaults to "User"
+    await expect(dialog.getByLabel("Role", { exact: true })).toHaveValue("user");
+
+    // Fill form and select Admin role
+    await dialog.getByLabel("Username").fill("newadmin");
+    await dialog.getByLabel("Password").fill("newadminpass");
+    await dialog.getByLabel("Role", { exact: true }).selectOption("admin");
+    await dialog.getByRole("button", { name: /create user/i }).click();
+
+    // Modal should close
+    await expect(dialog).not.toBeVisible();
+
+    // New user should appear with Admin badge
+    const newAdminRow = page.locator("tr", { hasText: "newadmin" });
+    await expect(newAdminRow.getByLabel("Role: Admin")).toBeVisible();
+  });
+
+  test("admin edits a user's role from User to Admin", async ({ page }) => {
+    await seedTestUser("promoteme", "promotepass", "user");
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/management?tab=users");
+
+    // Verify user has "User" badge initially
+    const userRow = page.locator("tr", { hasText: "promoteme" });
+    await expect(userRow.getByLabel("Role: User")).toBeVisible();
+
+    // Click Edit
+    await userRow.getByRole("button", { name: /edit/i }).click();
+
+    // Role selector should show current role "user"
+    await expect(page.getByLabel("Role", { exact: true })).toHaveValue("user");
+
+    // Change role to admin
+    await page.getByLabel("Role", { exact: true }).selectOption("admin");
+    await page.getByRole("button", { name: /save changes/i }).click();
+
+    // Verify badge updated
+    const updatedRow = page.locator("tr", { hasText: "promoteme" });
+    await expect(updatedRow.getByLabel("Role: Admin")).toBeVisible();
+  });
+
+  test("admin cannot change their own role", async ({ page }) => {
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/management?tab=users");
+
+    // Edit the admin user (themselves)
+    const adminRow = page.locator("tr", { hasText: "admin" });
+    await adminRow.getByRole("button", { name: /edit/i }).click();
+
+    // Change role to user
+    await page.getByLabel("Role", { exact: true }).selectOption("user");
+    await page.getByRole("button", { name: /save changes/i }).click();
+
+    // Self-role-change error should appear
+    await expect(
+      page.getByText(/cannot change your own role/i)
+    ).toBeVisible();
+  });
+
+  test("admin can demote another admin when multiple admins exist", async ({ page }) => {
+    // Seed a second admin so we can demote them, leaving only one admin
+    await seedTestUser("admin2", "admin2pass", "admin");
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/management?tab=users");
+
+    // Demote admin2 to user — succeeds because there are 2 admins
+    const admin2Row = page.locator("tr", { hasText: "admin2" });
+    await admin2Row.getByRole("button", { name: /edit/i }).click();
+    await page.getByLabel("Role", { exact: true }).selectOption("user");
+    await page.getByRole("button", { name: /save changes/i }).click();
+
+    // Verify admin2 is now a User
+    await expect(
+      page.locator("tr", { hasText: "admin2" }).getByLabel("Role: User")
+    ).toBeVisible();
   });
 });

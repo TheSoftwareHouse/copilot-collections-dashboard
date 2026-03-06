@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { ConfigurationEntity } from "@/entities/configuration.entity";
 import { ApiMode } from "@/entities/enums";
-import { configurationSchema } from "@/lib/validations/configuration";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { configurationSchema, updateConfigurationSchema } from "@/lib/validations/configuration";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { handleRouteError } from "@/lib/api-helpers";
 import { seedDefaultAdmin } from "@/lib/auth";
 import { invalidatePremiumAllowanceCache } from "@/lib/get-premium-allowance";
 
 export async function GET() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   let body: unknown;
@@ -115,7 +115,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  const result = configurationSchema.safeParse(body);
+  const result = updateConfigurationSchema.safeParse(body);
   if (!result.success) {
     return NextResponse.json(
       { error: "Validation failed", details: result.error.flatten().fieldErrors },
@@ -123,7 +123,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  const { apiMode, entityName, premiumRequestsPerSeat } = result.data;
+  const { premiumRequestsPerSeat } = result.data;
 
   try {
     const dataSource = await getDb();
@@ -137,11 +137,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    existing.apiMode = apiMode as ApiMode;
-    existing.entityName = entityName;
-    if (premiumRequestsPerSeat !== undefined) {
-      existing.premiumRequestsPerSeat = premiumRequestsPerSeat;
-    }
+    existing.premiumRequestsPerSeat = premiumRequestsPerSeat;
 
     const updated = await repository.save(existing);
     invalidatePremiumAllowanceCache();

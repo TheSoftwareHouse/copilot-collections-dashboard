@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import MonthFilter from "@/components/dashboard/MonthFilter";
 import SeatDailyChart from "@/components/usage/SeatDailyChart";
 import SeatModelTable from "@/components/usage/SeatModelTable";
@@ -17,6 +18,12 @@ interface SeatInfo {
   firstName: string | null;
   lastName: string | null;
   department: string | null;
+  departmentId: number | null;
+}
+
+interface TeamAssociation {
+  teamId: number;
+  teamName: string;
 }
 
 interface DailyUsageEntry {
@@ -43,6 +50,7 @@ interface SeatDetailResponse {
   summary: SummaryData;
   dailyUsage: DailyUsageEntry[];
   modelBreakdown: ModelBreakdownEntry[];
+  teams: TeamAssociation[];
   month: number;
   year: number;
   premiumRequestsPerSeat?: number;
@@ -179,6 +187,33 @@ export default function SeatDetailPanel({
           </h1>
           {fullName && (
             <p className="mt-1 text-sm text-gray-600">{fullName}</p>
+          )}
+          {seat.departmentId != null && seat.department != null && (
+            <p className="mt-1 text-sm text-gray-500">
+              Department:{" "}
+              <Link
+                href={`/usage/departments/${seat.departmentId}?month=${month}&year=${year}`}
+                className="text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {seat.department}
+              </Link>
+            </p>
+          )}
+          {data.teams.length > 0 && (
+            <p className="mt-1 text-sm text-gray-500">
+              Teams:{" "}
+              {data.teams.map((team, index) => (
+                <span key={team.teamId}>
+                  {index > 0 && ", "}
+                  <Link
+                    href={`/usage/teams/${team.teamId}?month=${month}&year=${year}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    {team.teamName}
+                  </Link>
+                </span>
+              ))}
+            </p>
           )}
         </div>
 

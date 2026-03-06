@@ -55,11 +55,17 @@ export default function SeatUsagePanel({ month, year }: SeatUsagePanelProps) {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState(() => readSearchFromUrl());
   const [search, setSearch] = useState(() => readSearchFromUrl());
+  const [sortBy, setSortBy] = useState("totalRequests");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // Reset to page 1 when month/year changes
-  useEffect(() => {
+  // Reset to page 1 when month/year changes (adjust state during render)
+  const [prevMonth, setPrevMonth] = useState(month);
+  const [prevYear, setPrevYear] = useState(year);
+  if (month !== prevMonth || year !== prevYear) {
+    setPrevMonth(month);
+    setPrevYear(year);
     setPage(1);
-  }, [month, year]);
+  }
 
   // Debounce search input → search (300 ms)
   useEffect(() => {
@@ -85,9 +91,19 @@ export default function SeatUsagePanel({ month, year }: SeatUsagePanelProps) {
     updateSearchUrl(search);
   }, [search, updateSearchUrl]);
 
+  function handleSortClick(field: string) {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
+  }
+
   const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
   const { data, loading, error } = useAsyncFetch<SeatUsageResponse>(
-    `/api/usage/seats?month=${month}&year=${year}&page=${page}&pageSize=${PAGE_SIZE}${searchParam}`,
+    `/api/usage/seats?month=${month}&year=${year}&page=${page}&pageSize=${PAGE_SIZE}${searchParam}&sortBy=${sortBy}&sortOrder=${sortOrder}`,
   );
 
   const searchBox = (
@@ -160,7 +176,7 @@ export default function SeatUsagePanel({ month, year }: SeatUsagePanelProps) {
       <SeatUsageStatsCards month={month} year={year} />
       <SeatUsageRankings month={month} year={year} />
       {searchBox}
-      <SeatUsageTable seats={data.seats} month={month} year={year} premiumRequestsPerSeat={data.premiumRequestsPerSeat ?? 300} />
+      <SeatUsageTable seats={data.seats} month={month} year={year} premiumRequestsPerSeat={data.premiumRequestsPerSeat ?? 300} sortBy={sortBy} sortOrder={sortOrder} onSort={handleSortClick} />
       {data.totalPages > 1 && (
         <Pagination
           currentPage={data.page}

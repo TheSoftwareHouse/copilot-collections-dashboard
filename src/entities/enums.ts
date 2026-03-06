@@ -20,3 +20,8 @@ export enum SeatStatus {
   ACTIVE = "active",
   INACTIVE = "inactive",
 }
+
+export enum UserRole {
+  ADMIN = "admin",
+  USER = "user",
+}

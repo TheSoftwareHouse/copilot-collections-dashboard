@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { TeamEntity } from "@/entities/team.entity";
 import { CopilotSeatEntity } from "@/entities/copilot-seat.entity";
 import { teamMembersBackfillSchema } from "@/lib/validations/team-members";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { parseEntityId, parseJsonBody, isJsonParseError, invalidIdResponse, handleRouteError } from "@/lib/api-helpers";
 import { IsNull, In } from "typeorm";
 
@@ -30,7 +30,7 @@ function generateMonthRange(
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;

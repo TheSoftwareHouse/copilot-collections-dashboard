@@ -33,12 +33,14 @@ const { CopilotUsageEntity } = await import("@/entities/copilot-usage.entity");
 type CopilotUsage = import("@/entities/copilot-usage.entity").CopilotUsage;
 const { SeatStatus } = await import("@/entities/enums");
 
-async function seedAuthSession(): Promise<void> {
+async function seedAuthSession(options?: { role?: string }): Promise<void> {
   const { UserEntity } = await import("@/entities/user.entity");
+  const { UserRole } = await import("@/entities/enums");
   const userRepo = testDs.getRepository(UserEntity);
   const user = await userRepo.save({
     username: "testadmin",
     passwordHash: await hashPassword("testpass"),
+    role: options?.role ?? UserRole.ADMIN,
   });
   const token = await createSession(user.id);
   mockCookieStore[SESSION_COOKIE_NAME] = token;
@@ -74,6 +76,15 @@ describe("GET /api/departments", () => {
     expect(response.status).toBe(401);
     const json = await response.json();
     expect(json.error).toBe("Authentication required");
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const response = await GET();
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 200 with empty list when no departments exist", async () => {
@@ -234,6 +245,16 @@ describe("POST /api/departments", () => {
     const request = makeRequest({ name: "Test Dept" });
     const response = await POST(request);
     expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const request = makeRequest({ name: "Test Dept" });
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 201 for valid input", async () => {

@@ -34,12 +34,14 @@ const { hashPassword, createSession, SESSION_COOKIE_NAME } = await import(
   "@/lib/auth"
 );
 
-async function seedAuthSession(): Promise<void> {
+async function seedAuthSession(options?: { role?: string }): Promise<void> {
   const { UserEntity } = await import("@/entities/user.entity");
+  const { UserRole } = await import("@/entities/enums");
   const userRepo = testDs.getRepository(UserEntity);
   const user = await userRepo.save({
     username: "testadmin",
     passwordHash: await hashPassword("testpass"),
+    role: options?.role ?? UserRole.ADMIN,
   });
   const token = await createSession(user.id);
   mockCookieStore[SESSION_COOKIE_NAME] = token;
@@ -80,6 +82,17 @@ describe("GET /api/configuration", () => {
     expect(response.status).toBe(401);
     const json = await response.json();
     expect(json.error).toBe("Authentication required");
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await cleanDatabase(testDs);
+    mockCookieStore = {};
+    await seedAuthSession({ role: UserRole.USER });
+    const response = await GET();
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 404 when no configuration exists", async () => {
@@ -283,13 +296,26 @@ describe("PUT /api/configuration", () => {
   it("returns 401 when no session is provided", async () => {
     mockCookieStore = {};
     const request = makeRequest("PUT", {
-      apiMode: "enterprise",
-      entityName: "NoAuth",
+      premiumRequestsPerSeat: 500,
     });
     const response = await PUT(request);
     expect(response.status).toBe(401);
     const json = await response.json();
     expect(json.error).toBe("Authentication required");
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await cleanDatabase(testDs);
+    mockCookieStore = {};
+    await seedAuthSession({ role: UserRole.USER });
+    const request = makeRequest("PUT", {
+      premiumRequestsPerSeat: 500,
+    });
+    const response = await PUT(request);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 200 and updates configuration with valid input", async () => {
@@ -301,19 +327,20 @@ describe("PUT /api/configuration", () => {
     await repo.save({
       apiMode: ApiMode.ORGANISATION,
       entityName: "OriginalOrg",
+      premiumRequestsPerSeat: 300,
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "enterprise",
-      entityName: "UpdatedCorp",
+      premiumRequestsPerSeat: 500,
     });
 
     const response = await PUT(request);
     expect(response.status).toBe(200);
 
     const json = await response.json();
-    expect(json.apiMode).toBe("enterprise");
-    expect(json.entityName).toBe("UpdatedCorp");
+    expect(json.premiumRequestsPerSeat).toBe(500);
+    expect(json.apiMode).toBe("organisation");
+    expect(json.entityName).toBe("OriginalOrg");
     expect(json.createdAt).toBeDefined();
     expect(json.updatedAt).toBeDefined();
   });
@@ -333,8 +360,7 @@ describe("PUT /api/configuration", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const request = makeRequest("PUT", {
-      apiMode: "enterprise",
-      entityName: "NewName",
+      premiumRequestsPerSeat: 500,
     });
 
     const response = await PUT(request);
@@ -348,8 +374,7 @@ describe("PUT /api/configuration", () => {
 
   it("returns 404 when no configuration exists", async () => {
     const request = makeRequest("PUT", {
-      apiMode: "enterprise",
-      entityName: "NoConfig",
+      premiumRequestsPerSeat: 500,
     });
 
     const response = await PUT(request);
@@ -357,52 +382,6 @@ describe("PUT /api/configuration", () => {
 
     const json = await response.json();
     expect(json.error).toBe("Configuration not found");
-  });
-
-  it("returns 400 for invalid apiMode", async () => {
-    const { ConfigurationEntity } = await import(
-      "@/entities/configuration.entity"
-    );
-    const repo = testDs.getRepository(ConfigurationEntity);
-    await repo.save({
-      apiMode: ApiMode.ORGANISATION,
-      entityName: "TestOrg",
-    });
-
-    const request = makeRequest("PUT", {
-      apiMode: "invalid",
-      entityName: "TestOrg",
-    });
-
-    const response = await PUT(request);
-    expect(response.status).toBe(400);
-
-    const json = await response.json();
-    expect(json.error).toBe("Validation failed");
-    expect(json.details.apiMode).toBeDefined();
-  });
-
-  it("returns 400 for empty entityName", async () => {
-    const { ConfigurationEntity } = await import(
-      "@/entities/configuration.entity"
-    );
-    const repo = testDs.getRepository(ConfigurationEntity);
-    await repo.save({
-      apiMode: ApiMode.ORGANISATION,
-      entityName: "TestOrg",
-    });
-
-    const request = makeRequest("PUT", {
-      apiMode: "organisation",
-      entityName: "",
-    });
-
-    const response = await PUT(request);
-    expect(response.status).toBe(400);
-
-    const json = await response.json();
-    expect(json.error).toBe("Validation failed");
-    expect(json.details.entityName).toBeDefined();
   });
 
   it("returns 400 for malformed JSON body", async () => {
@@ -427,19 +406,20 @@ describe("PUT /api/configuration", () => {
     await repo.save({
       apiMode: ApiMode.ORGANISATION,
       entityName: "OriginalOrg",
+      premiumRequestsPerSeat: 300,
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "enterprise",
-      entityName: "PersistedCorp",
+      premiumRequestsPerSeat: 500,
     });
 
     await PUT(request);
 
     const saved = await repo.findOne({ where: {} });
     expect(saved).not.toBeNull();
-    expect(saved!.apiMode).toBe("enterprise");
-    expect(saved!.entityName).toBe("PersistedCorp");
+    expect(saved!.premiumRequestsPerSeat).toBe(500);
+    expect(saved!.apiMode).toBe("organisation");
+    expect(saved!.entityName).toBe("OriginalOrg");
   });
 
   it("updates premiumRequestsPerSeat", async () => {
@@ -454,8 +434,6 @@ describe("PUT /api/configuration", () => {
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "organisation",
-      entityName: "TestOrg",
       premiumRequestsPerSeat: 500,
     });
 
@@ -477,8 +455,6 @@ describe("PUT /api/configuration", () => {
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "organisation",
-      entityName: "TestOrg",
       premiumRequestsPerSeat: -1,
     });
 
@@ -501,8 +477,6 @@ describe("PUT /api/configuration", () => {
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "organisation",
-      entityName: "TestOrg",
       premiumRequestsPerSeat: 0,
     });
 
@@ -521,9 +495,41 @@ describe("PUT /api/configuration", () => {
     });
 
     const request = makeRequest("PUT", {
-      apiMode: "organisation",
-      entityName: "TestOrg",
       premiumRequestsPerSeat: 1.5,
+    });
+
+    const response = await PUT(request);
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 when premiumRequestsPerSeat is missing", async () => {
+    const { ConfigurationEntity } = await import(
+      "@/entities/configuration.entity"
+    );
+    const repo = testDs.getRepository(ConfigurationEntity);
+    await repo.save({
+      apiMode: ApiMode.ORGANISATION,
+      entityName: "TestOrg",
+    });
+
+    const request = makeRequest("PUT", {});
+
+    const response = await PUT(request);
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for non-numeric premiumRequestsPerSeat", async () => {
+    const { ConfigurationEntity } = await import(
+      "@/entities/configuration.entity"
+    );
+    const repo = testDs.getRepository(ConfigurationEntity);
+    await repo.save({
+      apiMode: ApiMode.ORGANISATION,
+      entityName: "TestOrg",
+    });
+
+    const request = makeRequest("PUT", {
+      premiumRequestsPerSeat: "abc",
     });
 
     const response = await PUT(request);

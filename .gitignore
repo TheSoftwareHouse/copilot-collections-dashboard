@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/playwright/.cache/
+.playwright-mcp/
 
 # next.js
 /.next/
@@ -20,10 +24,12 @@
 # production
 /build
 /dist
+/specifications
 
 # misc
 .DS_Store
 *.pem
+/.vscode
 
 # debug
 npm-debug.log*

@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import MonthFilter from "@/components/dashboard/MonthFilter";
 import DashboardPanel from "@/components/dashboard/DashboardPanel";
-import type { AvailableMonth } from "@/lib/types";
 import { useAvailableMonths } from "@/lib/hooks/useAvailableMonths";
 
 interface DashboardWithFilterProps {

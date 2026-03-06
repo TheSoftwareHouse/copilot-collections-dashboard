@@ -1,7 +1,6 @@
 import { getDb } from "@/lib/db";
 import {
   JobExecutionEntity,
-  type JobExecution,
 } from "@/entities/job-execution.entity";
 import { JobType, JobStatus } from "@/entities/enums";
 import { ERROR_MESSAGE_MAX_LENGTH } from "@/lib/constants";

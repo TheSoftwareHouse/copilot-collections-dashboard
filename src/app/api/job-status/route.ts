@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { JobExecutionEntity } from "@/entities/job-execution.entity";
 import { JobType } from "@/entities/enums";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { handleRouteError } from "@/lib/api-helpers";
 
 export async function GET() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {

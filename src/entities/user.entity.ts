@@ -4,6 +4,7 @@ export interface User {
   id: number;
   username: string;
   passwordHash: string;
+  role: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,6 +26,11 @@ export const UserEntity = new EntitySchema<User>({
     passwordHash: {
       type: "varchar",
       length: 255,
+    },
+    role: {
+      type: "varchar",
+      length: 20,
+      default: "user",
     },
     createdAt: {
       type: "timestamptz",

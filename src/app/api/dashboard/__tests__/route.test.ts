@@ -68,10 +68,10 @@ async function seedSummary(
       { model: "Claude Sonnet 4.5", totalRequests: 50, totalAmount: 200 },
     ],
     mostActiveUsers: [
-      { githubUsername: "top-user", firstName: "Top", lastName: "User", totalRequests: 500, totalSpending: 250 },
+      { seatId: 1, githubUsername: "top-user", firstName: "Top", lastName: "User", totalRequests: 500, totalSpending: 250 },
     ],
     leastActiveUsers: [
-      { githubUsername: "low-user", firstName: "Low", lastName: "User", totalRequests: 10, totalSpending: 5 },
+      { seatId: 2, githubUsername: "low-user", firstName: "Low", lastName: "User", totalRequests: 10, totalSpending: 5 },
     ],
     ...overrides,
   } as Partial<DashboardMonthlySummary>);
@@ -137,9 +137,11 @@ describe("GET /api/dashboard", () => {
     expect(json.mostActiveUsers).toHaveLength(1);
     expect(json.mostActiveUsers[0].githubUsername).toBe("top-user");
     expect(json.mostActiveUsers[0].totalSpending).toBe(250);
+    expect(json.mostActiveUsers[0].seatId).toBe(1);
     expect(json.leastActiveUsers).toHaveLength(1);
     expect(json.leastActiveUsers[0].githubUsername).toBe("low-user");
     expect(json.leastActiveUsers[0].totalSpending).toBe(5);
+    expect(json.leastActiveUsers[0].seatId).toBe(2);
     expect(json.premiumRequestsPerSeat).toBe(300);
     expect(json.month).toBe(2);
     expect(json.year).toBe(2026);

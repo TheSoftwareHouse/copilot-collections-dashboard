@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   configurationSchema,
+  updateConfigurationSchema,
   type ConfigurationInput,
 } from "@/lib/validations/configuration";
 
@@ -12,8 +13,8 @@ type FieldErrors = Partial<Record<keyof ConfigurationInput, string[]>>;
 interface ConfigurationFormProps {
   mode?: "create" | "edit";
   initialValues?: {
-    apiMode: string;
-    entityName: string;
+    apiMode?: string;
+    entityName?: string;
     premiumRequestsPerSeat?: number;
   };
 }
@@ -47,28 +48,26 @@ export default function ConfigurationForm({
     setSuccessMessage(null);
 
     // Client-side validation
-    const payload: Record<string, unknown> = { apiMode, entityName };
     if (mode === "edit") {
       const parsedValue = parseInt(premiumRequestsPerSeat, 10);
-      payload.premiumRequestsPerSeat = isNaN(parsedValue) ? premiumRequestsPerSeat : parsedValue;
-    }
-    const parsed = configurationSchema.safeParse(payload);
-    if (!parsed.success) {
-      setFieldErrors(parsed.error.flatten().fieldErrors as FieldErrors);
-      return;
-    }
+      const payload = {
+        premiumRequestsPerSeat: isNaN(parsedValue) ? premiumRequestsPerSeat as unknown as number : parsedValue,
+      };
+      const parsed = updateConfigurationSchema.safeParse(payload);
+      if (!parsed.success) {
+        setFieldErrors(parsed.error.flatten().fieldErrors as FieldErrors);
+        return;
+      }
 
-    setIsSubmitting(true);
+      setIsSubmitting(true);
 
-    try {
-      const isEdit = mode === "edit";
-      const response = await fetch("/api/configuration", {
-        method: isEdit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
-      });
+      try {
+        const response = await fetch("/api/configuration", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed.data),
+        });
 
-      if (isEdit) {
         if (response.status === 200) {
           setSuccessMessage("Configuration updated successfully.");
           return;
@@ -78,17 +77,52 @@ export default function ConfigurationForm({
           setServerError("Configuration not found. Please complete the initial setup first.");
           return;
         }
-      } else {
-        if (response.status === 201) {
-          router.push("/dashboard");
+
+        if (response.status === 400) {
+          const data = await response.json();
+          if (data.details) {
+            setFieldErrors(data.details as FieldErrors);
+          } else {
+            setServerError(data.error || "Validation failed");
+          }
           return;
         }
 
-        if (response.status === 409) {
-          setServerError("Configuration already exists. Redirecting…");
-          setTimeout(() => router.push("/dashboard"), 1500);
-          return;
-        }
+        setServerError("An unexpected error occurred. Please try again.");
+      } catch {
+        setServerError("Network error. Please check your connection and try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Create mode
+    const payload: Record<string, unknown> = { apiMode, entityName };
+    const parsed = configurationSchema.safeParse(payload);
+    if (!parsed.success) {
+      setFieldErrors(parsed.error.flatten().fieldErrors as FieldErrors);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/configuration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.data),
+      });
+
+      if (response.status === 201) {
+        router.push("/dashboard");
+        return;
+      }
+
+      if (response.status === 409) {
+        setServerError("Configuration already exists. Redirecting…");
+        setTimeout(() => router.push("/dashboard"), 1500);
+        return;
       }
 
       if (response.status === 400) {
@@ -130,6 +164,7 @@ export default function ConfigurationForm({
       )}
 
       {/* API Mode Selection */}
+      {mode === "create" && (
       <fieldset>
         <legend className="text-sm font-medium text-gray-900 mb-3">
           GitHub API mode
@@ -168,8 +203,10 @@ export default function ConfigurationForm({
           </p>
         )}
       </fieldset>
+      )}
 
       {/* Entity Name */}
+      {mode === "create" && (
       <div>
         <label
           htmlFor="entityName"
@@ -202,6 +239,7 @@ export default function ConfigurationForm({
           </p>
         )}
       </div>
+      )}
 
       {/* Premium Requests Per Seat — edit mode only */}
       {mode === "edit" && (

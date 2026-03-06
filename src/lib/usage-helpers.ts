@@ -22,6 +22,15 @@ export function getUsageColour(percent: number): {
 }
 
 /**
+ * Get hex colour string for chart bars using the same thresholds as getUsageColour.
+ */
+export function getBarHexColor(percent: number): string {
+  if (percent >= 90) return "#22c55e";
+  if (percent >= 50) return "#f97316";
+  return "#ef4444";
+}
+
+/**
  * Calculate usage percentage with a guard against division by zero.
  */
 export function calcUsagePercent(

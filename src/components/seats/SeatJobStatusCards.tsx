@@ -105,23 +105,23 @@ export default function SeatJobStatusCards() {
         <JobCard
           title="Seat Sync"
           execution={data.seatSync}
+          action={<SyncNowButton onComplete={handleActionComplete} />}
+        />
+        <JobCard
+          title="Usage Collection"
+          execution={data.usageCollection}
           action={
             <>
-              <SyncNowButton onComplete={handleActionComplete} />
+              <CollectNowButton onComplete={handleActionComplete} />
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
                 className="inline-flex items-center rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >
-                Select Month
+                Collect Specific Month
               </button>
             </>
           }
-        />
-        <JobCard
-          title="Usage Collection"
-          execution={data.usageCollection}
-          action={<CollectNowButton onComplete={handleActionComplete} />}
         />
       </div>
       <Modal

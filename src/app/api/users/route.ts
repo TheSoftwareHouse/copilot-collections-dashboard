@@ -3,12 +3,13 @@ import { getDb } from "@/lib/db";
 import { UserEntity } from "@/entities/user.entity";
 import { createUserSchema } from "@/lib/validations/user";
 import { hashPassword } from "@/lib/auth";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
+import { UserRole } from "@/entities/enums";
 import { validateBody, isValidationError, handleRouteError } from "@/lib/api-helpers";
 import { getAuthMethod } from "@/lib/auth-config";
 
 export async function GET() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {
@@ -22,6 +23,7 @@ export async function GET() {
       users: users.map((u) => ({
         id: u.id,
         username: u.username,
+        role: u.role,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
       })),
@@ -32,7 +34,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   if (getAuthMethod() === "azure") {
@@ -45,20 +47,21 @@ export async function POST(request: Request) {
   const parsed = await validateBody(request, createUserSchema);
   if (isValidationError(parsed)) return parsed;
 
-  const { username, password } = parsed.data;
+  const { username, password, role } = parsed.data;
 
   try {
     const dataSource = await getDb();
     const userRepo = dataSource.getRepository(UserEntity);
 
     const passwordHash = await hashPassword(password);
-    const user = userRepo.create({ username, passwordHash });
+    const user = userRepo.create({ username, passwordHash, role: role ?? UserRole.USER });
     const saved = await userRepo.save(user);
 
     return NextResponse.json(
       {
         id: saved.id,
         username: saved.username,
+        role: saved.role,
         createdAt: saved.createdAt,
         updatedAt: saved.updatedAt,
       },

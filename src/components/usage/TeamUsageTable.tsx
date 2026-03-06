@@ -1,7 +1,19 @@
+"use client";
+
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { UsageStatusIndicator } from "@/components/usage/UsageStatusIndicator";
 import { formatCurrency } from "@/lib/format-helpers";
+import SortableTableHeader from "@/components/shared/SortableTableHeader";
 import type { TeamUsageEntry } from "@/components/usage/TeamUsagePanel";
+
+type SortField =
+  | "teamName"
+  | "memberCount"
+  | "totalRequests"
+  | "averageRequestsPerMember"
+  | "totalGrossAmount"
+  | "usagePercent";
 
 interface TeamUsageTableProps {
   teams: TeamUsageEntry[];
@@ -10,21 +22,43 @@ interface TeamUsageTableProps {
 }
 
 export default function TeamUsageTable({ teams, month, year }: TeamUsageTableProps) {
+  const [sortBy, setSortBy] = useState<SortField>("usagePercent");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  function handleSortClick(field: string) {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field as SortField);
+      setSortOrder("asc");
+    }
+  }
+
+  const sortedTeams = useMemo(() => {
+    return [...teams].sort((a, b) => {
+      const dir = sortOrder === "asc" ? 1 : -1;
+      if (sortBy === "teamName") {
+        return dir * a.teamName.localeCompare(b.teamName);
+      }
+      return dir * (a[sortBy] - b[sortBy]);
+    });
+  }, [teams, sortBy, sortOrder]);
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
       <table className="w-full text-left text-sm" aria-label="Team usage summary">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="px-6 py-3 font-medium text-gray-500">Team Name</th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">Members</th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">Total Requests</th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">Avg Requests/Member</th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">Total Spending</th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">Usage %</th>
+            <SortableTableHeader label="Team Name" field="teamName" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} />
+            <SortableTableHeader label="Members" field="memberCount" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
+            <SortableTableHeader label="Total Requests" field="totalRequests" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
+            <SortableTableHeader label="Avg Requests/Member" field="averageRequestsPerMember" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
+            <SortableTableHeader label="Total Spending" field="totalGrossAmount" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
+            <SortableTableHeader label="Usage %" field="usagePercent" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
           </tr>
         </thead>
         <tbody>
-          {teams.map((team) => (
+          {sortedTeams.map((team) => (
             <tr
               key={team.teamId}
               className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"

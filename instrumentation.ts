@@ -45,6 +45,9 @@ function resolveCronSchedule(): string {
 }
 
 export async function register() {
+  console.log("Registering instrumentation...");
+  console.log(`Runtime: ${process.env.NEXT_RUNTIME || "undefined"}`);
+  console.log(`Schedule: ${process.env.SYNC_CRON_SCHEDULE || "not set"}`);
   if (process.env.NEXT_RUNTIME !== "nodejs") {
     return;
   }
@@ -56,11 +59,11 @@ export async function register() {
   validateAuthConfig();
   console.log(`Authentication method: ${getAuthMethod()}`);
 
-  // Warn early if GITHUB_TOKEN is missing — the app can start without it
-  // (e.g. for first-run configuration), but sync jobs will fail.
-  if (!process.env.GITHUB_TOKEN) {
+  // Warn early if ENCRYPTION_KEY is missing — the app can start without it
+  // (e.g. during migration period), but GitHub App credential storage will fail.
+  if (!process.env.ENCRYPTION_KEY) {
     console.warn(
-      "⚠ GITHUB_TOKEN is not set. Seat sync and usage collection will fail until it is configured.",
+      "⚠ ENCRYPTION_KEY is not set. GitHub App credential storage will not work.",
     );
   }
 
@@ -76,6 +79,7 @@ export async function register() {
   const schedule = resolveCronSchedule();
 
   const runSyncCycle = async () => {
+    console.log("Starting scheduled sync cycle");
     // Step 0: Team carry-forward (always runs; self-guards via idempotency check)
     try {
       const { executeTeamCarryForward } = await import(

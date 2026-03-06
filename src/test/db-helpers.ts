@@ -9,6 +9,7 @@ import { DashboardMonthlySummaryEntity } from "@/entities/dashboard-monthly-summ
 import { TeamEntity } from "@/entities/team.entity";
 import { TeamMemberSnapshotEntity } from "@/entities/team-member-snapshot.entity";
 import { DepartmentEntity } from "@/entities/department.entity";
+import { GitHubAppEntity } from "@/entities/github-app.entity";
 
 let testDataSource: DataSource | undefined;
 
@@ -34,7 +35,7 @@ export async function getTestDataSource(): Promise<DataSource> {
     username: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
     database: parsed.pathname.replace("/", ""),
-    entities: [ConfigurationEntity, CopilotSeatEntity, CopilotUsageEntity, JobExecutionEntity, UserEntity, SessionEntity, DashboardMonthlySummaryEntity, TeamEntity, TeamMemberSnapshotEntity, DepartmentEntity],
+    entities: [ConfigurationEntity, CopilotSeatEntity, CopilotUsageEntity, JobExecutionEntity, UserEntity, SessionEntity, DashboardMonthlySummaryEntity, TeamEntity, TeamMemberSnapshotEntity, DepartmentEntity, GitHubAppEntity],
     synchronize: true,
     logging: false,
   });
@@ -59,6 +60,8 @@ export async function cleanDatabase(ds: DataSource): Promise<void> {
   await configRepository.clear();
   const jobRepository = ds.getRepository(JobExecutionEntity);
   await jobRepository.clear();
+  const githubAppRepository = ds.getRepository(GitHubAppEntity);
+  await githubAppRepository.clear();
 }
 
 /**

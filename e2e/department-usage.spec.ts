@@ -161,7 +161,7 @@ test.describe("Department Usage — Department Tab", () => {
     await expect(row.getByRole("img", { name: /usage/i })).toBeVisible();
   });
 
-  test("departments are ordered from lowest to highest usage % in the table", async ({
+  test("departments are ordered from highest to lowest usage % in the table", async ({
     page,
   }) => {
     await seedDashboardSummary(currentMonth, currentYear);
@@ -194,12 +194,12 @@ test.describe("Department Usage — Department Tab", () => {
     const deptTab = page.getByRole("tab", { name: "Department" });
     await deptTab.click();
 
-    // First row should be Low Dept (30%), second should be High Dept (100%)
+    // First row should be High Dept (100%), second should be Low Dept (30%)
     const rows = page.getByRole("row");
     const firstDataRow = rows.nth(1);
     const secondDataRow = rows.nth(2);
-    await expect(firstDataRow).toContainText("Low Dept");
-    await expect(secondDataRow).toContainText("High Dept");
+    await expect(firstDataRow).toContainText("High Dept");
+    await expect(secondDataRow).toContainText("Low Dept");
   });
 
   test("department table shows department name, avg requests/member, and usage %", async ({
@@ -1147,5 +1147,369 @@ test.describe("Department Usage — Department Detail Member Search", () => {
     await expect(
       page.getByText(/no members match your search/i),
     ).toBeVisible();
+  });
+});
+
+test.describe("Department Usage — Department Detail Statistics Cards", () => {
+  const now = new Date();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentYear = now.getUTCFullYear();
+
+  test.beforeEach(async () => {
+    await clearAll();
+    await seedConfiguration();
+    await seedTestUser("admin", "password123");
+    await seedDashboardSummary(currentMonth, currentYear);
+  });
+
+  test.afterAll(async () => {
+    await clearAll();
+  });
+
+  test("stats cards show correct per-member values for a department with multiple members", async ({
+    page,
+  }) => {
+    const deptId = await seedDepartment("Detail Stats Dept");
+
+    // Member 1: 300 requests → 300/300 × 100 = 100%
+    const seat1Id = await seedSeat({
+      githubUsername: "ds-alice",
+      githubUserId: 50001,
+      departmentId: deptId,
+    });
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 300, 12.0),
+    ]);
+
+    // Member 2: 150 requests → 150/300 × 100 = 50%
+    const seat2Id = await seedSeat({
+      githubUsername: "ds-bob",
+      githubUserId: 50002,
+      departmentId: deptId,
+    });
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 150, 6.0),
+    ]);
+
+    // Member 3: 60 requests → 60/300 × 100 = 20%
+    const seat3Id = await seedSeat({
+      githubUsername: "ds-charlie",
+      githubUserId: 50003,
+      departmentId: deptId,
+    });
+    await seedUsage(seat3Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 60, 2.4),
+    ]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto(
+      `/usage/departments/${deptId}?month=${currentMonth}&year=${currentYear}`,
+    );
+
+    // Average = (100+50+20)/3 = 56.7 → 57%
+    // Median = 50% (sorted: 20, 50, 100)
+    // Min = 20%, Max = 100%
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("57%")).toBeVisible();
+
+    const medianCard = cards.locator("div").filter({ hasText: "Median Usage" });
+    await expect(medianCard.getByText("50%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("20%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("100%")).toBeVisible();
+  });
+
+  test("stats cards show dash when department has no members", async ({
+    page,
+  }) => {
+    const deptId = await seedDepartment("Empty Stats Dept");
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto(
+      `/usage/departments/${deptId}?month=${currentMonth}&year=${currentYear}`,
+    );
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const dashValues = cards.getByText("—");
+    await expect(dashValues).toHaveCount(4);
+  });
+
+  test("stats cards include members with zero usage in statistics", async ({
+    page,
+  }) => {
+    const deptId = await seedDepartment("Zero Usage Dept");
+
+    // Member 1: 150 requests → 50%
+    const seat1Id = await seedSeat({
+      githubUsername: "zu-alice",
+      githubUserId: 50101,
+      departmentId: deptId,
+    });
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 150, 6.0),
+    ]);
+
+    // Member 2: no usage → 0%
+    await seedSeat({
+      githubUsername: "zu-bob",
+      githubUserId: 50102,
+      departmentId: deptId,
+    });
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto(
+      `/usage/departments/${deptId}?month=${currentMonth}&year=${currentYear}`,
+    );
+
+    // Average = (50+0)/2 = 25%, Median = 25%, Min = 0%, Max = 50%
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("0%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("50%")).toBeVisible();
+  });
+
+  test("stats cards are not affected by member search filter", async ({
+    page,
+  }) => {
+    const deptId = await seedDepartment("Search Stats Dept");
+
+    // Member 1: 300 requests → 100%
+    const seat1Id = await seedSeat({
+      githubUsername: "sf-alice",
+      githubUserId: 50201,
+      firstName: "Alice",
+      lastName: "Filter",
+      departmentId: deptId,
+    });
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 300, 12.0),
+    ]);
+
+    // Member 2: 60 requests → 20%
+    const seat2Id = await seedSeat({
+      githubUsername: "sf-bob",
+      githubUserId: 50202,
+      firstName: "Bob",
+      lastName: "Filter",
+      departmentId: deptId,
+    });
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 60, 2.4),
+    ]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto(
+      `/usage/departments/${deptId}?month=${currentMonth}&year=${currentYear}`,
+    );
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    // Average = (100+20)/2 = 60%, Min = 20%, Max = 100%
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("60%")).toBeVisible();
+
+    // Filter to only Alice
+    const searchInput = page.getByPlaceholder("Search members…");
+    await searchInput.fill("Alice");
+
+    // Table should only show Alice
+    const table = page.getByRole("table");
+    await expect(table.getByText("sf-alice")).toBeVisible();
+    await expect(table.getByText("sf-bob")).not.toBeVisible();
+
+    // Stats cards should still show global stats (not filtered)
+    await expect(averageCard.getByText("60%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("20%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("100%")).toBeVisible();
+  });
+
+  test("stats cards are visible above the member search box", async ({
+    page,
+  }) => {
+    const deptId = await seedDepartment("Position Stats Dept");
+    const seatId = await seedSeat({
+      githubUsername: "pos-detail",
+      githubUserId: 50301,
+      departmentId: deptId,
+    });
+    await seedUsage(seatId, 1, currentMonth, currentYear, [
+      makeUsageItem("GPT-4o", 100, 4.0),
+    ]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto(
+      `/usage/departments/${deptId}?month=${currentMonth}&year=${currentYear}`,
+    );
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toBeVisible();
+
+    const searchInput = page.getByPlaceholder("Search members…");
+    await expect(searchInput).toBeVisible();
+
+    const cardsBox = await cards.boundingBox();
+    const searchBox = await searchInput.boundingBox();
+    expect(cardsBox).toBeTruthy();
+    expect(searchBox).toBeTruthy();
+    expect(cardsBox!.y).toBeLessThan(searchBox!.y);
+  });
+});
+
+test.describe("Department Usage — Statistics Cards", () => {
+  const now = new Date();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentYear = now.getUTCFullYear();
+
+  test.beforeEach(async () => {
+    await clearAll();
+    await seedConfiguration();
+    await seedTestUser("admin", "password123");
+    await seedDashboardSummary(currentMonth, currentYear);
+  });
+
+  test.afterAll(async () => {
+    await clearAll();
+  });
+
+  test("stats cards show correct aggregate values for multiple departments", async ({ page }) => {
+    // Dept A: 2 members — seat1 has 300 requests (capped at 300), seat2 has 150
+    // capped_total = 450, usage = 450 / (2×300) × 100 = 75%
+    const deptAId = await seedDepartment("Stats Dept A");
+    const seat1Id = await seedSeat({ githubUsername: "stats-alice", githubUserId: 9001, departmentId: deptAId });
+    const seat2Id = await seedSeat({ githubUsername: "stats-bob", githubUserId: 9002, departmentId: deptAId });
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 300, 12.0)]);
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 150, 6.0)]);
+
+    // Dept B: 1 member — 120 requests → usage = 120 / 300 × 100 = 40%
+    const deptBId = await seedDepartment("Stats Dept B");
+    const seat3Id = await seedSeat({ githubUsername: "stats-charlie", githubUserId: 9003, departmentId: deptBId });
+    await seedUsage(seat3Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 120, 4.8)]);
+
+    // Dept C: 1 member — 270 requests → usage = 270 / 300 × 100 = 90%
+    const deptCId = await seedDepartment("Stats Dept C");
+    const seat4Id = await seedSeat({ githubUsername: "stats-dana", githubUserId: 9004, departmentId: deptCId });
+    await seedUsage(seat4Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 270, 10.8)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const deptTab = page.getByRole("tab", { name: "Department" });
+    await deptTab.click();
+
+    // Average = (75 + 40 + 90) / 3 = 68.3 → 68%
+    // Median = 75 (sorted: 40, 75, 90)
+    // Min = 40%
+    // Max = 90%
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("68%")).toBeVisible();
+
+    const medianCard = cards.locator("div").filter({ hasText: "Median Usage" });
+    await expect(medianCard.getByText("75%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("40%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("90%")).toBeVisible();
+  });
+
+  test("stats cards show dash when no departments have usage data", async ({ page }) => {
+    // No departments, no usage — cards should show "—"
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const deptTab = page.getByRole("tab", { name: "Department" });
+    await deptTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const dashValues = cards.getByText("—");
+    await expect(dashValues).toHaveCount(4);
+  });
+
+  test("stats cards are not affected by search filter", async ({ page }) => {
+    // Seed 2 departments with different usage
+    const deptAId = await seedDepartment("Alpha Dept");
+    const seat1Id = await seedSeat({ githubUsername: "search-s1", githubUserId: 9101, departmentId: deptAId });
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 150, 6.0)]);
+
+    const deptBId = await seedDepartment("Beta Dept");
+    const seat2Id = await seedSeat({ githubUsername: "search-s2", githubUserId: 9102, departmentId: deptBId });
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 90, 3.6)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const deptTab = page.getByRole("tab", { name: "Department" });
+    await deptTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    // Both depts: Alpha = 150/300 × 100 = 50%, Beta = 90/300 × 100 = 30%
+    // Average = 40%, Min = 30%, Max = 50%
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("40%")).toBeVisible();
+
+    // Filter to only Alpha Dept
+    const searchInput = page.getByPlaceholder("Search departments…");
+    await searchInput.fill("Alpha");
+    const table = page.getByRole("table");
+    await expect(table.getByText("Beta Dept")).not.toBeVisible();
+
+    // Stats cards should STILL show global stats (not filtered)
+    await expect(averageCard.getByText("40%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("30%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("50%")).toBeVisible();
+  });
+
+  test("stats cards are visible above the search box", async ({ page }) => {
+    const deptId = await seedDepartment("Position Dept");
+    const seatId = await seedSeat({ githubUsername: "pos-user", githubUserId: 9201, departmentId: deptId });
+    await seedUsage(seatId, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 100, 4.0)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const deptTab = page.getByRole("tab", { name: "Department" });
+    await deptTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toBeVisible();
+
+    const searchInput = page.getByPlaceholder("Search departments…");
+    await expect(searchInput).toBeVisible();
+
+    // Verify cards appear above search by checking Y positions
+    const cardsBox = await cards.boundingBox();
+    const searchBox = await searchInput.boundingBox();
+    expect(cardsBox).toBeTruthy();
+    expect(searchBox).toBeTruthy();
+    expect(cardsBox!.y).toBeLessThan(searchBox!.y);
   });
 });

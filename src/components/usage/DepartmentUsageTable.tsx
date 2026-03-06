@@ -1,6 +1,12 @@
+"use client";
+
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { UsageStatusIndicator } from "@/components/usage/UsageStatusIndicator";
+import SortableTableHeader from "@/components/shared/SortableTableHeader";
 import type { DepartmentUsageEntry } from "@/components/usage/DepartmentUsagePanel";
+
+type SortField = "departmentName" | "averageRequestsPerMember" | "usagePercent";
 
 interface DepartmentUsageTableProps {
   departments: DepartmentUsageEntry[];
@@ -13,24 +19,40 @@ export default function DepartmentUsageTable({
   month,
   year,
 }: DepartmentUsageTableProps) {
+  const [sortBy, setSortBy] = useState<SortField>("usagePercent");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  function handleSortClick(field: string) {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field as SortField);
+      setSortOrder("asc");
+    }
+  }
+
+  const sortedDepartments = useMemo(() => {
+    return [...departments].sort((a, b) => {
+      const dir = sortOrder === "asc" ? 1 : -1;
+      if (sortBy === "departmentName") {
+        return dir * a.departmentName.localeCompare(b.departmentName);
+      }
+      return dir * (a[sortBy] - b[sortBy]);
+    });
+  }, [departments, sortBy, sortOrder]);
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-x-auto">
       <table className="w-full text-left text-sm" aria-label="Department usage summary">
         <thead>
           <tr className="border-b border-gray-200 bg-gray-50">
-            <th className="px-6 py-3 font-medium text-gray-500">
-              Department Name
-            </th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">
-              Avg Requests/Member
-            </th>
-            <th className="px-6 py-3 text-right font-medium text-gray-500">
-              Usage %
-            </th>
+            <SortableTableHeader label="Department Name" field="departmentName" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} />
+            <SortableTableHeader label="Avg Requests/Member" field="averageRequestsPerMember" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
+            <SortableTableHeader label="Usage %" field="usagePercent" currentSortBy={sortBy} currentSortOrder={sortOrder} onSort={handleSortClick} align="right" />
           </tr>
         </thead>
         <tbody>
-          {departments.map((dept) => (
+          {sortedDepartments.map((dept) => (
             <tr
               key={dept.departmentId}
               className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"

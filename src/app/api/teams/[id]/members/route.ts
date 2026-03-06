@@ -4,14 +4,14 @@ import { TeamEntity } from "@/entities/team.entity";
 import { TeamMemberSnapshotEntity } from "@/entities/team-member-snapshot.entity";
 import { CopilotSeatEntity } from "@/entities/copilot-seat.entity";
 import { teamMembersSeatIdsSchema, teamMembersRemoveSchema } from "@/lib/validations/team-members";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { parseEntityId, getCurrentMonthYear, parseJsonBody, isJsonParseError, invalidIdResponse, handleRouteError } from "@/lib/api-helpers";
 import { IsNull, In } from "typeorm";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;
@@ -73,7 +73,7 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 export async function POST(request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;
@@ -164,7 +164,7 @@ export async function POST(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const { id: idParam } = await context.params;

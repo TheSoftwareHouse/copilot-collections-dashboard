@@ -348,7 +348,7 @@ export function CollectNowButton({ onComplete }: { onComplete?: () => void } = {
             Collecting…
           </>
         ) : (
-          "Collect Now"
+          "Collect Today"
         )}
       </button>
       {message && (

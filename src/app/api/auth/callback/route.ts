@@ -5,6 +5,7 @@ import {
   decodeIdToken,
   validateIdTokenClaims,
   mapArcticError,
+  mapAzureRolesToAppRole,
 } from "@/lib/azure-auth";
 import type { IdTokenClaims } from "@/lib/azure-auth";
 import {
@@ -108,6 +109,9 @@ export async function GET(request: Request) {
     // Decode and validate ID token
     const idToken = tokens.idToken();
     const claims = decodeIdToken(idToken) as IdTokenClaims;
+
+    console.log("[auth/callback] Full ID token claims:", JSON.stringify(claims, null, 2));
+
     validateIdTokenClaims(claims, config);
 
     // Extract username
@@ -118,6 +122,10 @@ export async function GET(request: Request) {
     }
 
     console.log("[auth/callback] Authenticated user:", username);
+    console.log("[auth/callback] Azure App Roles from ID token:", claims.roles ?? []);
+
+    // Map Azure roles to application role
+    const appRole = mapAzureRolesToAppRole(claims.roles);
 
     // Extract refresh token (may be null if Azure didn't return one)
     let refreshToken: string | null = null;
@@ -137,6 +145,7 @@ export async function GET(request: Request) {
         user = await userRepo.save({
           username,
           passwordHash: AZURE_AD_USER_PASSWORD_HASH,
+          role: appRole,
         });
       } catch (error: unknown) {
         // Handle race condition: another request may have created the user
@@ -145,61 +154,44 @@ export async function GET(request: Request) {
           if (!user) {
             return loginRedirect(request, "auth_failed");
           }
+          // Apply role from Azure claim to the race-condition user
+          if (user.role !== appRole) {
+            await userRepo.update(user.id, { role: appRole });
+            user.role = appRole;
+          }
         } else {
           throw error;
         }
+      }
+    } else {
+      // Existing user — update role if it changed in Azure
+      if (user.role !== appRole) {
+        await userRepo.update(user.id, { role: appRole });
+        user.role = appRole;
       }
     }
 
     // Create session with refresh token
     const token = await createSession(user.id, refreshToken);
     const maxAge = getSessionTimeoutSeconds();
-    const secureCookies = shouldUseSecureCookies();
-
-    // Build the Set-Cookie header manually.
-    // We deliberately return a 200 HTML page (not a 302 redirect) because
-    // Next.js standalone mode in Docker silently strips Set-Cookie headers
-    // from redirect responses. The HTML page sets the cookie, then
-    // client-side JS + meta-refresh navigates the browser to /dashboard.
-    const cookieParts = [
-      `${SESSION_COOKIE_NAME}=${token}`,
-      "HttpOnly",
-      `Path=/`,
-      `SameSite=Lax`,
-      `Max-Age=${maxAge}`,
-    ];
-    if (secureCookies) {
-      cookieParts.push("Secure");
-    }
 
     const dashboardUrl = new URL("/dashboard", getAppOrigin()).toString();
 
     console.log("[auth/callback] Login complete, setting session cookie and redirecting to dashboard", {
-      secureCookies,
       maxAge,
       dashboardUrl,
     });
 
-    return new Response(
-      `<!DOCTYPE html>
-<html>
-<head>
-  <meta http-equiv="refresh" content="0;url=${dashboardUrl}">
-</head>
-<body>
-  <p>Redirecting to dashboard…</p>
-  <script>window.location.href=${JSON.stringify(dashboardUrl)};</script>
-</body>
-</html>`,
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Set-Cookie": cookieParts.join("; "),
-          "Cache-Control": "no-store",
-        },
-      },
-    );
+    const response = NextResponse.redirect(dashboardUrl, 302);
+    response.cookies.set(SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: shouldUseSecureCookies(),
+      sameSite: "lax",
+      path: "/",
+      maxAge,
+    });
+
+    return response;
   } catch (error) {
     console.error("[auth/callback] Unexpected error:", error);
     return loginRedirect(request, "auth_failed");

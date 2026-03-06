@@ -1,6 +1,9 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import ManagementPageLayout from "@/components/management/ManagementPageLayout";
+import { getSession } from "@/lib/auth";
 import { getAuthMethod } from "@/lib/auth-config";
+import { UserRole } from "@/entities/enums";
 
 export const metadata = {
   title: "Management — Copilot Dashboard",
@@ -8,7 +11,12 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function ManagementPage() {
+export default async function ManagementPage() {
+  const session = await getSession();
+  if (session?.user.role !== UserRole.ADMIN) {
+    redirect("/dashboard");
+  }
+
   const authMethod = getAuthMethod();
 
   return (

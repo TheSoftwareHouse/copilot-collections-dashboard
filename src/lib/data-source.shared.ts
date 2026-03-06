@@ -8,6 +8,7 @@ import { DashboardMonthlySummaryEntity } from "../entities/dashboard-monthly-sum
 import { TeamEntity } from "../entities/team.entity";
 import { TeamMemberSnapshotEntity } from "../entities/team-member-snapshot.entity";
 import { DepartmentEntity } from "../entities/department.entity";
+import { GitHubAppEntity } from "../entities/github-app.entity";
 
 export const allEntities = [
   ConfigurationEntity,
@@ -20,6 +21,7 @@ export const allEntities = [
   TeamEntity,
   TeamMemberSnapshotEntity,
   DepartmentEntity,
+  GitHubAppEntity,
 ];
 
 export function parseConnectionString(url: string) {

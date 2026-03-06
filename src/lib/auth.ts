@@ -6,6 +6,7 @@ import { UserEntity } from "@/entities/user.entity";
 import { SessionEntity } from "@/entities/session.entity";
 import { getAuthMethod } from "@/lib/auth-config";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { UserRole } from "@/entities/enums";
 
 const BCRYPT_ROUNDS = 10;
 
@@ -51,7 +52,7 @@ export async function createSession(
 }
 
 export async function getSession(): Promise<{
-  user: { id: number; username: string };
+  user: { id: number; username: string; role: string };
 } | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -103,7 +104,7 @@ export async function getSession(): Promise<{
         return null;
       }
 
-      return { user: { id: user.id, username: user.username } };
+      return { user: { id: user.id, username: user.username, role: user.role } };
     }
 
     // No refresh token or not Azure mode — destroy expired session
@@ -121,7 +122,7 @@ export async function getSession(): Promise<{
   session.expiresAt = new Date(Date.now() + getSessionTimeoutMs());
   await sessionRepo.save(session);
 
-  return { user: { id: user.id, username: user.username } };
+  return { user: { id: user.id, username: user.username, role: user.role } };
 }
 
 export async function destroySession(): Promise<void> {
@@ -149,17 +150,25 @@ export async function seedDefaultAdmin(): Promise<void> {
 
   const dataSource = await getDb();
   const userRepo = dataSource.getRepository(UserEntity);
-  const userCount = await userRepo.count();
 
+  const existingAdmin = await userRepo.findOne({ where: { username } });
+
+  if (existingAdmin) {
+    if (existingAdmin.role !== UserRole.ADMIN) {
+      await userRepo.update(existingAdmin.id, { role: UserRole.ADMIN });
+    }
+    return;
+  }
+
+  const userCount = await userRepo.count();
   if (userCount > 0) {
     return;
   }
 
   const passwordHash = await hashPassword(password);
   try {
-    await userRepo.save({ username, passwordHash });
+    await userRepo.save({ username, passwordHash, role: UserRole.ADMIN });
   } catch (error: unknown) {
-    // Ignore unique constraint violation (race condition: another request seeded first)
     if (!isUniqueViolation(error)) {
       throw error;
     }

@@ -35,26 +35,33 @@ vi.mock("@/lib/pkce-token", () => ({
 // Mock Arctic functions
 const mockValidateAuthorizationCode = vi.fn();
 
-vi.mock("@/lib/azure-auth", () => ({
-  getEntraIdClient: () => ({
-    validateAuthorizationCode: mockValidateAuthorizationCode,
-  }),
-  decodeIdToken: () => ({
-    sub: "azure-subject-123",
-    preferred_username: "testuser@example.com",
-    name: "Test User",
-    email: "testuser@example.com",
-    iss: "https://login.microsoftonline.com/test-tenant-id/v2.0",
-    aud: "test-client-id",
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  }),
-  validateIdTokenClaims: vi.fn(),
-  mapArcticError: (error: unknown) => {
-    if (error instanceof OAuth2RequestError) return "auth_failed";
-    if (error instanceof ArcticFetchError) return "provider_unavailable";
-    return "auth_failed";
-  },
-}));
+const defaultIdTokenClaims = {
+  sub: "azure-subject-123",
+  preferred_username: "testuser@example.com",
+  name: "Test User",
+  email: "testuser@example.com",
+  iss: "https://login.microsoftonline.com/test-tenant-id/v2.0",
+  aud: "test-client-id",
+  exp: Math.floor(Date.now() / 1000) + 3600,
+};
+const mockDecodeIdToken = vi.fn().mockReturnValue(defaultIdTokenClaims);
+
+vi.mock("@/lib/azure-auth", async () => {
+  const { mapAzureRolesToAppRole } = await import("@/lib/azure-auth");
+  return {
+    getEntraIdClient: () => ({
+      validateAuthorizationCode: mockValidateAuthorizationCode,
+    }),
+    decodeIdToken: (...args: unknown[]) => mockDecodeIdToken(...args),
+    validateIdTokenClaims: vi.fn(),
+    mapArcticError: (error: unknown) => {
+      if (error instanceof OAuth2RequestError) return "auth_failed";
+      if (error instanceof ArcticFetchError) return "provider_unavailable";
+      return "auth_failed";
+    },
+    mapAzureRolesToAppRole,
+  };
+});
 
 const { GET } = await import("@/app/api/auth/callback/route");
 
@@ -84,6 +91,8 @@ describe("GET /api/auth/callback", () => {
     await cleanDatabase(testDs);
     mockValidateAuthorizationCode.mockReset();
     mockVerifyPkceToken.mockReset();
+    mockDecodeIdToken.mockReset();
+    mockDecodeIdToken.mockReturnValue(defaultIdTokenClaims);
     // Default: successful PKCE token verification
     mockVerifyPkceToken.mockReturnValue({
       state: "original-state",
@@ -99,18 +108,16 @@ describe("GET /api/auth/callback", () => {
 
   // ── Successful flow ────────────────────────────────────────────
 
-  it("returns HTML page that redirects to /dashboard on successful flow", async () => {
+  it("redirects to /dashboard on successful flow", async () => {
     const request = makeCallbackRequest(
       { code: "valid-auth-code", state: "signed-pkce-token" },
     );
 
     const response = await GET(request);
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/html");
-    const body = await response.text();
-    expect(body).toContain("/dashboard");
-    expect(body).toContain('meta http-equiv="refresh"');
+    expect(response.status).toBe(302);
+    const location = getRedirectLocation(response);
+    expect(location.pathname).toBe("/dashboard");
   });
 
   it("sets session_token cookie on success", async () => {
@@ -122,8 +129,8 @@ describe("GET /api/auth/callback", () => {
     const setCookie = response.headers.get("set-cookie") || "";
 
     expect(setCookie).toContain("session_token=");
-    expect(setCookie).toContain("HttpOnly");
-    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie.toLowerCase()).toContain("httponly");
+    expect(setCookie.toLowerCase()).toContain("samesite=lax");
     expect(setCookie).toContain("Path=/");
   });
 
@@ -281,5 +288,207 @@ describe("GET /api/auth/callback", () => {
     const location = getRedirectLocation(response);
     expect(location.pathname).toBe("/login");
     expect(location.searchParams.get("error")).toBe("provider_unavailable");
+  });
+
+  // ── Roles claim extraction ─────────────────────────────────────
+
+  it("logs Azure App Roles when present in ID token", async () => {
+    mockDecodeIdToken.mockReturnValueOnce({
+      ...defaultIdTokenClaims,
+      roles: ["Admin"],
+    });
+    const logSpy = vi.spyOn(console, "log");
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(302);
+    expect(getRedirectLocation(response).pathname).toBe("/dashboard");
+    expect(logSpy).toHaveBeenCalledWith(
+      "[auth/callback] Azure App Roles from ID token:",
+      ["Admin"],
+    );
+    logSpy.mockRestore();
+  });
+
+  it("logs empty array when roles claim is missing from ID token", async () => {
+    const logSpy = vi.spyOn(console, "log");
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(302);
+    expect(getRedirectLocation(response).pathname).toBe("/dashboard");
+    expect(logSpy).toHaveBeenCalledWith(
+      "[auth/callback] Azure App Roles from ID token:",
+      [],
+    );
+    logSpy.mockRestore();
+  });
+
+  it("logs empty array when roles claim is empty array", async () => {
+    mockDecodeIdToken.mockReturnValueOnce({
+      ...defaultIdTokenClaims,
+      roles: [],
+    });
+    const logSpy = vi.spyOn(console, "log");
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(302);
+    expect(getRedirectLocation(response).pathname).toBe("/dashboard");
+    expect(logSpy).toHaveBeenCalledWith(
+      "[auth/callback] Azure App Roles from ID token:",
+      [],
+    );
+    logSpy.mockRestore();
+  });
+
+  // ── Role mapping on login ──────────────────────────────────────
+
+  it("assigns admin role to new user when Azure roles contain Admin", async () => {
+    mockDecodeIdToken.mockReturnValue({
+      ...defaultIdTokenClaims,
+      roles: ["Admin"],
+    });
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("admin");
+  });
+
+  it("assigns user role to new user when Azure roles do not contain Admin", async () => {
+    mockDecodeIdToken.mockReturnValue({
+      ...defaultIdTokenClaims,
+      roles: ["Reader"],
+    });
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("user");
+  });
+
+  it("assigns user role to new user when Azure roles claim is missing", async () => {
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("user");
+  });
+
+  it("promotes existing user to admin when Admin role added in Azure", async () => {
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    await userRepo.save({
+      username: "testuser@example.com",
+      passwordHash: "AZURE_AD_USER",
+      role: "user",
+    });
+
+    mockDecodeIdToken.mockReturnValue({
+      ...defaultIdTokenClaims,
+      roles: ["Admin"],
+    });
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("admin");
+  });
+
+  it("demotes existing admin to user when Admin role removed in Azure", async () => {
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    await userRepo.save({
+      username: "testuser@example.com",
+      passwordHash: "AZURE_AD_USER",
+      role: "admin",
+    });
+
+    mockDecodeIdToken.mockReturnValue({
+      ...defaultIdTokenClaims,
+      roles: [],
+    });
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("user");
+  });
+
+  it("preserves admin role for returning admin user", async () => {
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    await userRepo.save({
+      username: "testuser@example.com",
+      passwordHash: "AZURE_AD_USER",
+      role: "admin",
+    });
+
+    mockDecodeIdToken.mockReturnValue({
+      ...defaultIdTokenClaims,
+      roles: ["Admin"],
+    });
+
+    const request = makeCallbackRequest(
+      { code: "valid-auth-code", state: "signed-pkce-token" },
+    );
+    await GET(request);
+
+    const user = await userRepo.findOne({
+      where: { username: "testuser@example.com" },
+    });
+
+    expect(user).not.toBeNull();
+    expect(user!.role).toBe("admin");
   });
 });

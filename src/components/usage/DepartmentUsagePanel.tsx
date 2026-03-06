@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAsyncFetch } from "@/lib/hooks/useAsyncFetch";
 import DepartmentUsageChart from "@/components/usage/DepartmentUsageChart";
 import DepartmentUsageTable from "@/components/usage/DepartmentUsageTable";
+import DepartmentUsageStatsCards from "@/components/usage/DepartmentUsageStatsCards";
 
 export interface DepartmentUsageEntry {
   departmentId: number;
@@ -95,6 +96,7 @@ export default function DepartmentUsagePanel({
   if (loading) {
     return (
       <div className="space-y-4">
+        <DepartmentUsageStatsCards month={month} year={year} />
         {searchBox}
         <div className="flex items-center justify-center py-12" role="status">
           <p className="text-sm text-gray-500">
@@ -108,6 +110,7 @@ export default function DepartmentUsagePanel({
   if (error) {
     return (
       <div className="space-y-4">
+        <DepartmentUsageStatsCards month={month} year={year} />
         {searchBox}
         <div
           className="rounded-lg border border-red-200 bg-red-50 p-6"
@@ -122,6 +125,7 @@ export default function DepartmentUsagePanel({
   if (!data || data.total === 0) {
     return (
       <div className="space-y-4">
+        <DepartmentUsageStatsCards month={month} year={year} />
         {searchBox}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-500">
@@ -136,6 +140,7 @@ export default function DepartmentUsagePanel({
   if (filteredDepartments && filteredDepartments.length === 0) {
     return (
       <div className="space-y-4">
+        <DepartmentUsageStatsCards month={month} year={year} />
         {searchBox}
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-gray-500">
@@ -150,6 +155,7 @@ export default function DepartmentUsagePanel({
 
   return (
     <div className="space-y-4">
+      <DepartmentUsageStatsCards month={month} year={year} />
       {searchBox}
       <DepartmentUsageChart
         departments={departments}

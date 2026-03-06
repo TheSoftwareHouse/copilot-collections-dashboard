@@ -33,12 +33,14 @@ const { hashPassword, createSession, SESSION_COOKIE_NAME } = await import(
   "@/lib/auth"
 );
 
-async function seedAuthSession(): Promise<void> {
+async function seedAuthSession(options?: { role?: string }): Promise<void> {
   const { UserEntity } = await import("@/entities/user.entity");
+  const { UserRole } = await import("@/entities/enums");
   const userRepo = testDs.getRepository(UserEntity);
   const user = await userRepo.save({
     username: "testadmin",
     passwordHash: await hashPassword("testpass"),
+    role: options?.role ?? UserRole.ADMIN,
   });
   const token = await createSession(user.id);
   mockCookieStore[SESSION_COOKIE_NAME] = token;
@@ -77,6 +79,15 @@ describe("GET /api/users", () => {
     expect(json.error).toBe("Authentication required");
   });
 
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const response = await GET();
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
+  });
+
   it("returns 200 with empty user list when only the auth user exists", async () => {
     await seedAuthSession();
     const response = await GET();
@@ -104,10 +115,16 @@ describe("GET /api/users", () => {
     for (const user of json.users) {
       expect(user).toHaveProperty("id");
       expect(user).toHaveProperty("username");
+      expect(user).toHaveProperty("role");
       expect(user).toHaveProperty("createdAt");
       expect(user).toHaveProperty("updatedAt");
       expect(user).not.toHaveProperty("passwordHash");
     }
+
+    const adminUser = json.users.find((u: { username: string }) => u.username === "testadmin");
+    expect(adminUser.role).toBe("admin");
+    const regularUser = json.users.find((u: { username: string }) => u.username === "anotheruser");
+    expect(regularUser.role).toBe("user");
   });
 });
 
@@ -139,10 +156,72 @@ describe("POST /api/users", () => {
     expect(response.status).toBe(201);
     const json = await response.json();
     expect(json.username).toBe("newuser");
+    expect(json.role).toBe("user");
     expect(json).toHaveProperty("id");
     expect(json).toHaveProperty("createdAt");
     expect(json).toHaveProperty("updatedAt");
     expect(json).not.toHaveProperty("passwordHash");
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const request = makeRequest({ username: "newuser", password: "newpass" });
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
+  });
+
+  it("creates user with admin role when role is 'admin'", async () => {
+    await seedAuthSession();
+    const request = makeRequest({ username: "adminuser", password: "pass", role: "admin" });
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.role).toBe("admin");
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({ where: { id: json.id } });
+    expect(user!.role).toBe("admin");
+  });
+
+  it("creates user with user role when role is 'user'", async () => {
+    await seedAuthSession();
+    const request = makeRequest({ username: "regularuser", password: "pass", role: "user" });
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.role).toBe("user");
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({ where: { id: json.id } });
+    expect(user!.role).toBe("user");
+  });
+
+  it("defaults to user role when role is not specified", async () => {
+    await seedAuthSession();
+    const request = makeRequest({ username: "defaultrole", password: "pass" });
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+    const json = await response.json();
+    expect(json.role).toBe("user");
+
+    const { UserEntity } = await import("@/entities/user.entity");
+    const userRepo = testDs.getRepository(UserEntity);
+    const user = await userRepo.findOne({ where: { id: json.id } });
+    expect(user!.role).toBe("user");
+  });
+
+  it("returns 400 for invalid role value", async () => {
+    await seedAuthSession();
+    const request = makeRequest({ username: "badrole", password: "pass", role: "superadmin" });
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.error).toBe("Validation failed");
   });
 
   it("stores hashed password in database", async () => {

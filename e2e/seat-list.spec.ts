@@ -368,19 +368,19 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await clearAll();
   });
 
-  test("Select Month button is visible on the Seat Sync card", async ({ page }) => {
+  test("Collect Specific Month button is visible on the Usage Collection card", async ({ page }) => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    const seatSyncCard = page.getByRole("article").filter({ hasText: "Seat Sync" });
-    await expect(seatSyncCard.getByRole("button", { name: "Select Month" })).toBeVisible();
+    const usageCard = page.getByRole("article").filter({ hasText: "Usage Collection" });
+    await expect(usageCard.getByRole("button", { name: "Collect Specific Month" })).toBeVisible();
   });
 
-  test("clicking Select Month opens a modal with correct title and form controls", async ({ page }) => {
+  test("clicking Collect Specific Month opens a modal with correct title and form controls", async ({ page }) => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -394,7 +394,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
 
     await page.keyboard.press("Escape");
@@ -405,7 +405,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
 
     const overlay = page.getByTestId("modal-overlay");
@@ -417,7 +417,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -438,7 +438,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("Success")).toBeVisible();
@@ -448,7 +448,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -478,7 +478,7 @@ test.describe("Month Data Recollection Modal on Seats Tab", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/management?tab=seats");
 
-    await page.getByRole("button", { name: "Select Month" }).click();
+    await page.getByRole("button", { name: "Collect Specific Month" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 

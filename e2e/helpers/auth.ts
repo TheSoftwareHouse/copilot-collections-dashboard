@@ -6,15 +6,16 @@ import { getClient } from "./db";
  */
 export async function seedTestUser(
   username: string,
-  password: string
+  password: string,
+  role: string = "admin"
 ): Promise<void> {
   const bcrypt = await import("bcryptjs");
   const hash = await bcrypt.hash(password, 10);
   const client = await getClient();
   await client.query(
-    `INSERT INTO app_user ("username", "passwordHash") VALUES ($1, $2)
+    `INSERT INTO app_user ("username", "passwordHash", "role") VALUES ($1, $2, $3)
      ON CONFLICT ("username") DO NOTHING`,
-    [username, hash]
+    [username, hash, role]
   );
   await client.end();
 }

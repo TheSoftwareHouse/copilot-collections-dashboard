@@ -26,14 +26,26 @@ vi.mock("@/lib/github-api", () => ({
   fetchPremiumRequestUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/github-app-token", () => ({
+  getInstallationToken: vi.fn(),
+  NoOrgConnectedError: class NoOrgConnectedError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "NoOrgConnectedError";
+    }
+  },
+}));
+
 vi.mock("@/lib/dashboard-metrics", () => ({
   refreshDashboardMetrics: vi.fn(),
 }));
 
 const { executeMonthRecollection } = await import("@/lib/month-recollection");
 const { fetchPremiumRequestUsage } = await import("@/lib/github-api");
+const { getInstallationToken, NoOrgConnectedError } = await import("@/lib/github-app-token");
 const { refreshDashboardMetrics } = await import("@/lib/dashboard-metrics");
 const mockedFetchUsage = vi.mocked(fetchPremiumRequestUsage);
+const mockedGetToken = vi.mocked(getInstallationToken);
 const mockedRefreshMetrics = vi.mocked(refreshDashboardMetrics);
 
 function makeUsageResponse(
@@ -108,6 +120,7 @@ describe("executeMonthRecollection", () => {
   beforeEach(async () => {
     await cleanDatabase(testDs);
     vi.clearAllMocks();
+    mockedGetToken.mockResolvedValue("test-installation-token");
   });
 
   it("skips when no configuration exists", async () => {
@@ -115,6 +128,23 @@ describe("executeMonthRecollection", () => {
 
     expect(result.skipped).toBe(true);
     expect(result.reason).toBe("no_configuration");
+
+    // No JobExecution should be created
+    const jobRepo = testDs.getRepository(JobExecutionEntity);
+    const jobs = await jobRepo.find();
+    expect(jobs).toHaveLength(0);
+  });
+
+  it("skips recollection when no org is connected", async () => {
+    await seedConfiguration(testDs);
+    mockedGetToken.mockRejectedValueOnce(
+      new NoOrgConnectedError("No GitHub App configured"),
+    );
+
+    const result = await executeMonthRecollection(2, 2026);
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe("no_org_connected");
 
     // No JobExecution should be created
     const jobRepo = testDs.getRepository(JobExecutionEntity);
@@ -154,6 +184,15 @@ describe("executeMonthRecollection", () => {
     const callUsernames = mockedFetchUsage.mock.calls.map((c) => c[0].username);
     expect(callUsernames.filter((u) => u === "active-user")).toHaveLength(28);
     expect(callUsernames.filter((u) => u === "inactive-user")).toHaveLength(28);
+
+    // Verify apiMode is passed through
+    expect(mockedFetchUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiMode: ApiMode.ORGANISATION,
+        entityName: "test-org",
+      }),
+      expect.any(String),
+    );
   });
 
   it("correctly generates date range for months with 28 days (Feb non-leap)", async () => {
@@ -374,5 +413,31 @@ describe("executeMonthRecollection", () => {
     // because all users errored
     expect(result.skipped).toBe(false);
     expect(result.status).toBe(JobStatus.FAILURE);
+  });
+
+  it("passes enterprise apiMode to fetchPremiumRequestUsage when configured", async () => {
+    const configRepo = testDs.getRepository(ConfigurationEntity);
+    await configRepo.save({
+      apiMode: ApiMode.ENTERPRISE,
+      entityName: "test-enterprise",
+    });
+
+    await seedSeat(testDs, "enterprise-user");
+
+    mockedFetchUsage.mockImplementation(async (config) =>
+      makeUsageResponse(config.username, config.day, config.month, config.year),
+    );
+
+    const result = await executeMonthRecollection(2, 2026);
+
+    expect(result.skipped).toBe(false);
+    expect(result.status).toBe(JobStatus.SUCCESS);
+    expect(mockedFetchUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiMode: ApiMode.ENTERPRISE,
+        entityName: "test-enterprise",
+      }),
+      expect.any(String),
+    );
   });
 });

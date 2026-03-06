@@ -7,7 +7,7 @@ export class AddTeamCarryForwardJobType1772900000000 implements MigrationInterfa
         await queryRunner.query(`ALTER TYPE "public"."job_execution_jobtype_enum" ADD VALUE IF NOT EXISTS 'team_carry_forward'`);
     }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
+    public async down(_queryRunner: QueryRunner): Promise<void> {
         // PostgreSQL does not support removing a value from an enum type.
         // To fully revert, the enum would need to be recreated without the value,
         // which requires recreating the column. This is intentionally left as a no-op

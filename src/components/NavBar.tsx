@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { UserRole } from "@/entities/enums";
+
+interface NavBarProps {
+  userRole: string;
+}
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/usage", label: "Usage" },
-  { href: "/management", label: "Management" },
+  { href: "/management", label: "Management", adminOnly: true as const },
 ];
 
-export default function NavBar() {
+export default function NavBar({ userRole }: NavBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -43,7 +48,9 @@ export default function NavBar() {
             Copilot Dashboard
           </span>
           <ul className="flex gap-4">
-            {navLinks.map(({ href, label }) => {
+            {navLinks
+              .filter((link) => !link.adminOnly || userRole === UserRole.ADMIN)
+              .map(({ href, label }) => {
               const isActive = isActiveLink(href);
               return (
                 <li key={href}>

@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { TeamEntity } from "@/entities/team.entity";
 import { createTeamSchema } from "@/lib/validations/team";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { validateBody, isValidationError, handleRouteError } from "@/lib/api-helpers";
 import { IsNull } from "typeorm";
 import { getPremiumAllowance } from "@/lib/get-premium-allowance";
 import { calcUsagePercent } from "@/lib/usage-helpers";
 
 export async function GET() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {
@@ -92,7 +92,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   const parsed = await validateBody(request, createTeamSchema);

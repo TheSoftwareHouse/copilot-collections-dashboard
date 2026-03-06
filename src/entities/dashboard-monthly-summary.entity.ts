@@ -7,6 +7,7 @@ export interface ModelUsageEntry {
 }
 
 export interface UserActivityEntry {
+  seatId: number;
   githubUsername: string;
   firstName: string | null;
   lastName: string | null;

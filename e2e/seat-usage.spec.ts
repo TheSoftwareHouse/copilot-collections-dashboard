@@ -160,8 +160,9 @@ test.describe("Usage Analytics — Seat Tab", () => {
     await page.goto("/usage");
 
     // Wait for table to load
-    await expect(page.getByText("alice-dev")).toBeVisible();
-    await expect(page.getByText("Alice Smith")).toBeVisible();
+    const seatTable = page.locator("table");
+    await expect(seatTable.getByText("alice-dev")).toBeVisible();
+    await expect(seatTable.getByText("Alice Smith")).toBeVisible();
     await expect(page.getByText("Engineering")).toBeVisible();
     await expect(page.getByText("$4.00")).toBeVisible(); // gross: 3.20 + 0.80 (Total Spending)
 
@@ -199,7 +200,7 @@ test.describe("Usage Analytics — Seat Tab", () => {
     await page.goto("/usage");
 
     // Click on the seat row
-    await page.getByRole("link", { name: "bob-dev" }).click();
+    await page.locator("table").getByRole("link", { name: "bob-dev" }).click();
 
     await expect(page).toHaveURL(new RegExp(`/usage/seats/${seatId}\\?month=${currentMonth}&year=${currentYear}`));
   });
@@ -252,7 +253,8 @@ test.describe("Usage Analytics — Seat Tab", () => {
     await page.goto("/usage");
 
     // Current month data should be visible
-    await expect(page.getByText("current-user")).toBeVisible();
+    const seatTable = page.locator("table");
+    await expect(seatTable.getByText("current-user")).toBeVisible();
 
     // Switch to previous month
     const select = page.getByLabel("Month");
@@ -260,7 +262,7 @@ test.describe("Usage Analytics — Seat Tab", () => {
     await select.selectOption(`${prevMonth}-${prevYear}`);
 
     // Previous month data should now be visible
-    await expect(page.getByText("prev-user")).toBeVisible();
+    await expect(seatTable.getByText("prev-user")).toBeVisible();
     await expect(page.getByText("$2.40")).toBeVisible(); // gross amount for prev-user
   });
 
@@ -389,44 +391,48 @@ test.describe("Usage Analytics — Seat Search", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/usage");
 
+    const seatTable = page.locator("table");
+
     // All 3 seats visible initially
-    await expect(page.getByText("alice-dev")).toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).toBeVisible();
 
     const searchInput = page.getByPlaceholder("Search seats…");
     await searchInput.fill("alice");
 
     // After debounce, only Alice's seat should appear
-    await expect(page.getByText("alice-dev")).toBeVisible();
-    await expect(page.getByText("bob-eng")).not.toBeVisible();
-    await expect(page.getByText("charlie-ops")).not.toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).not.toBeVisible();
+    await expect(seatTable.getByText("charlie-ops")).not.toBeVisible();
   });
 
   test("search is case-insensitive", async ({ page }) => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/usage");
 
+    const seatTable = page.locator("table");
     const searchInput = page.getByPlaceholder("Search seats…");
     await searchInput.fill("ALICE");
 
-    await expect(page.getByText("alice-dev")).toBeVisible();
-    await expect(page.getByText("bob-eng")).not.toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).not.toBeVisible();
   });
 
   test("clearing the search input restores the full list", async ({ page }) => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/usage");
 
+    const seatTable = page.locator("table");
     const searchInput = page.getByPlaceholder("Search seats…");
     await searchInput.fill("alice");
-    await expect(page.getByText("bob-eng")).not.toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).not.toBeVisible();
 
     // Clear the search
     await searchInput.clear();
 
     // All seats should reappear
-    await expect(page.getByText("alice-dev")).toBeVisible();
-    await expect(page.getByText("bob-eng")).toBeVisible();
-    await expect(page.getByText("charlie-ops")).toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).toBeVisible();
+    await expect(seatTable.getByText("charlie-ops")).toBeVisible();
   });
 
   test("empty state message is shown when search has no matches", async ({ page }) => {
@@ -464,7 +470,7 @@ test.describe("Usage Analytics — Seat Search", () => {
     // Search should reset to page 1
     const searchInput = page.getByPlaceholder("Search seats…");
     await searchInput.fill("alice");
-    await expect(page.getByText("alice-dev")).toBeVisible();
+    await expect(page.locator("table").getByText("alice-dev")).toBeVisible();
     // Should no longer show page 2
     await expect(page.getByText(/Page 2/)).not.toBeVisible();
   });
@@ -473,12 +479,13 @@ test.describe("Usage Analytics — Seat Search", () => {
     await loginViaApi(page, "admin", "password123");
     await page.goto("/usage");
 
+    const seatTable = page.locator("table");
     const searchInput = page.getByPlaceholder("Search seats…");
     await searchInput.fill("bob");
 
     // Wait for results to filter
-    await expect(page.getByText("bob-eng")).toBeVisible();
-    await expect(page.getByText("alice-dev")).not.toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).not.toBeVisible();
 
     // URL should contain search param
     await expect(page).toHaveURL(/search=bob/);
@@ -489,8 +496,8 @@ test.describe("Usage Analytics — Seat Search", () => {
     // After reload, search should be pre-filled and results filtered
     const reloadedSearchInput = page.getByPlaceholder("Search seats…");
     await expect(reloadedSearchInput).toHaveValue("bob");
-    await expect(page.getByText("bob-eng")).toBeVisible();
-    await expect(page.getByText("alice-dev")).not.toBeVisible();
+    await expect(seatTable.getByText("bob-eng")).toBeVisible();
+    await expect(seatTable.getByText("alice-dev")).not.toBeVisible();
   });
 
   test("switching tabs clears the search param from URL", async ({ page }) => {
@@ -501,7 +508,7 @@ test.describe("Usage Analytics — Seat Search", () => {
     await searchInput.fill("alice");
 
     // Wait for filtered results
-    await expect(page.getByText("alice-dev")).toBeVisible();
+    await expect(page.locator("table").getByText("alice-dev")).toBeVisible();
     await expect(page).toHaveURL(/search=alice/);
 
     // Switch to Team tab

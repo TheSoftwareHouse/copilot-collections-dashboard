@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
        ORDER BY
          CASE WHEN COALESCE(da."memberCount", 0) = 0 THEN 0
               ELSE COALESCE(da."cappedTotalRequests", 0) / (COALESCE(da."memberCount", 0) * $3)
-         END ASC`,
+         END DESC`,
       [month, year, premiumRequestsPerSeat],
     );
 

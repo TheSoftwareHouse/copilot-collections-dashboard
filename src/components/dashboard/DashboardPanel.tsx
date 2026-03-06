@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { calcUsagePercent, getAllowanceThresholdColor, calcAllowanceTrend } from "@/lib/usage-helpers";
 import { UsageStatusIndicator } from "@/components/usage/UsageStatusIndicator";
 
@@ -11,6 +12,7 @@ interface ModelUsageEntry {
 }
 
 interface UserActivityEntry {
+  seatId?: number;
   githubUsername: string;
   firstName: string | null;
   lastName: string | null;
@@ -23,7 +25,6 @@ interface DashboardData {
   activeSeats: number;
   modelUsage: ModelUsageEntry[];
   mostActiveUsers: UserActivityEntry[];
-  leastActiveUsers: UserActivityEntry[];
   totalSpending: number;
   seatBaseCost: number;
   includedPremiumRequests: number;
@@ -329,24 +330,19 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
         </div>
       )}
 
-      {/* User Lists */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Most Active Users */}
-        {data.mostActiveUsers.length > 0 && (
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Most Active Users
-              </h2>
-            </div>
-            <ul className="divide-y divide-gray-100">
-              {data.mostActiveUsers.map((user) => {
-                const name = formatUserName(user);
-                return (
-                <li
-                  key={user.githubUsername}
-                  className="flex items-center justify-between px-6 py-3"
-                >
+      {/* Most Active Users */}
+      {data.mostActiveUsers.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-200 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Most Active Users
+            </h2>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {data.mostActiveUsers.map((user) => {
+              const name = formatUserName(user);
+              const content = (
+                <>
                   <div>
                     <p className="text-sm font-medium text-gray-900">
                       <span className="inline-flex items-center gap-2">
@@ -368,52 +364,28 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
                       {formatCurrency(user.totalSpending ?? 0)} spent
                     </p>
                   </div>
+                </>
+              );
+              return (
+                <li key={user.seatId ?? user.githubUsername}>
+                  {user.seatId ? (
+                    <Link
+                      href={`/usage/seats/${user.seatId}?month=${data.month}&year=${data.year}`}
+                      className="flex items-center justify-between px-6 py-3 hover:bg-gray-50"
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center justify-between px-6 py-3">
+                      {content}
+                    </div>
+                  )}
                 </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {/* Least Active Users */}
-        {data.leastActiveUsers.length > 0 && (
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 px-6 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Least Active Users
-              </h2>
-            </div>
-            <ul className="divide-y divide-gray-100">
-              {data.leastActiveUsers.map((user) => {
-                const name = formatUserName(user);
-                return (
-                <li
-                  key={user.githubUsername}
-                  className="flex items-center justify-between px-6 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      <span className="inline-flex items-center gap-2">
-                        <UsageStatusIndicator percent={calcUsagePercent(user.totalRequests, data.premiumRequestsPerSeat)} />
-                        {user.githubUsername}
-                      </span>
-                    </p>
-                    {name && (
-                      <p className="text-xs text-gray-500">
-                        {name}
-                      </p>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium text-gray-700">
-                    {Math.round(user.totalRequests).toLocaleString()} requests
-                  </p>
-                </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </div>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

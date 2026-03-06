@@ -11,11 +11,29 @@ import Modal from "@/components/shared/Modal";
 interface UserRecord {
   id: number;
   username: string;
+  role: string;
   createdAt: string;
   updatedAt: string;
 }
 
 type FieldErrors = Partial<Record<keyof CreateUserInput, string[]>>;
+
+const ROLE_CONFIG: Record<string, { label: string; bgClass: string; textClass: string }> = {
+  admin: { label: "Admin", bgClass: "bg-purple-100", textClass: "text-purple-800" },
+  user: { label: "User", bgClass: "bg-gray-100", textClass: "text-gray-800" },
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const config = ROLE_CONFIG[role] ?? { label: role, bgClass: "bg-gray-100", textClass: "text-gray-800" };
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${config.bgClass} ${config.textClass}`}
+      aria-label={`Role: ${config.label}`}
+    >
+      {config.label}
+    </span>
+  );
+}
 
 export default function UserManagementPanel() {
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -26,6 +44,7 @@ export default function UserManagementPanel() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createUsername, setCreateUsername] = useState("");
   const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState("user");
   const [createFieldErrors, setCreateFieldErrors] = useState<FieldErrors>({});
   const [createServerError, setCreateServerError] = useState<string | null>(
     null
@@ -36,6 +55,7 @@ export default function UserManagementPanel() {
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState("user");
   const [editFieldErrors, setEditFieldErrors] = useState<FieldErrors>({});
   const [editServerError, setEditServerError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -69,6 +89,7 @@ export default function UserManagementPanel() {
   function resetCreateForm() {
     setCreateUsername("");
     setCreatePassword("");
+    setCreateRole("user");
     setCreateFieldErrors({});
     setCreateServerError(null);
     setShowCreateForm(false);
@@ -78,6 +99,7 @@ export default function UserManagementPanel() {
     setEditingUserId(user.id);
     setEditUsername(user.username);
     setEditPassword("");
+    setEditRole(user.role);
     setEditFieldErrors({});
     setEditServerError(null);
     setConfirmDeleteId(null);
@@ -88,6 +110,7 @@ export default function UserManagementPanel() {
     setEditingUserId(null);
     setEditUsername("");
     setEditPassword("");
+    setEditRole("user");
     setEditFieldErrors({});
     setEditServerError(null);
   }
@@ -100,6 +123,7 @@ export default function UserManagementPanel() {
     const parsed = createUserSchema.safeParse({
       username: createUsername,
       password: createPassword,
+      role: createRole,
     });
     if (!parsed.success) {
       setCreateFieldErrors(parsed.error.flatten().fieldErrors as FieldErrors);
@@ -155,6 +179,7 @@ export default function UserManagementPanel() {
     const payload: Record<string, string> = {};
     if (editUsername !== originalUser?.username) payload.username = editUsername;
     if (editPassword) payload.password = editPassword;
+    if (editRole !== originalUser?.role) payload.role = editRole;
 
     const parsed = updateUserSchema.safeParse(payload);
     if (!parsed.success) {
@@ -183,6 +208,12 @@ export default function UserManagementPanel() {
       if (response.status === 409) {
         const data = await response.json();
         setEditServerError(data.error || "Username already exists");
+        return;
+      }
+
+      if (response.status === 403) {
+        const data = await response.json();
+        setEditServerError(data.error || "Permission denied");
         return;
       }
 
@@ -378,6 +409,28 @@ export default function UserManagementPanel() {
               </p>
             )}
           </div>
+          <div>
+            <label htmlFor="create-role" className="block text-sm font-medium text-gray-900 mb-1">
+              Role
+            </label>
+            <select
+              id="create-role"
+              name="role"
+              value={createRole}
+              onChange={(e) => setCreateRole(e.target.value)}
+              aria-describedby={createFieldErrors.role ? "create-role-error" : undefined}
+              aria-invalid={!!createFieldErrors.role}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+            {createFieldErrors.role && (
+              <p id="create-role-error" className="mt-1 text-sm text-red-600" role="alert">
+                {createFieldErrors.role[0]}
+              </p>
+            )}
+          </div>
           <div className="flex gap-3">
             <button
               type="submit"
@@ -420,6 +473,12 @@ export default function UserManagementPanel() {
                   scope="col"
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                 >
+                  Role
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                >
                   Created
                 </th>
                 <th
@@ -434,7 +493,7 @@ export default function UserManagementPanel() {
               {users.map((user) => (
                 <tr key={user.id}>
                   {editingUserId === user.id ? (
-                    <td colSpan={3} className="px-6 py-4">
+                    <td colSpan={4} className="px-6 py-4">
                       {editServerError && (
                         <div
                           role="alert"
@@ -515,6 +574,39 @@ export default function UserManagementPanel() {
                             </p>
                           )}
                         </div>
+                        <div>
+                          <label
+                            htmlFor="edit-role"
+                            className="block text-sm font-medium text-gray-900 mb-1"
+                          >
+                            Role
+                          </label>
+                          <select
+                            id="edit-role"
+                            name="role"
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value)}
+                            aria-describedby={
+                              editFieldErrors.role
+                                ? "edit-role-error"
+                                : undefined
+                            }
+                            aria-invalid={!!editFieldErrors.role}
+                            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          {editFieldErrors.role && (
+                            <p
+                              id="edit-role-error"
+                              className="mt-1 text-sm text-red-600"
+                              role="alert"
+                            >
+                              {editFieldErrors.role[0]}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-3">
                           <button
                             type="submit"
@@ -537,6 +629,9 @@ export default function UserManagementPanel() {
                     <>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {user.username}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <RoleBadge role={user.role} />
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {new Date(user.createdAt).toLocaleDateString()}

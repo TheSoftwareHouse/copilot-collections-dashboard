@@ -19,6 +19,9 @@ import { AddDepartmentNameUnique1772700000000 } from "../migrations/177270000000
 import { AddPremiumRequestsPerSeat1772800000000 } from "../migrations/1772800000000-AddPremiumRequestsPerSeat";
 import { AddTeamCarryForwardJobType1772900000000 } from "../migrations/1772900000000-AddTeamCarryForwardJobType";
 import { AddRefreshTokenToSession1772950000000 } from "../migrations/1772950000000-AddRefreshTokenToSession";
+import { CreateGitHubApp1773000000000 } from "../migrations/1773000000000-CreateGitHubApp";
+import { AddInstallationIdToGitHubApp1773100000000 } from "../migrations/1773100000000-AddInstallationIdToGitHubApp";
+import { AddUserRole1773200000000 } from "../migrations/1773200000000-AddUserRole";
 
 const MAX_RETRIES = 5;
 const RETRY_INTERVAL_MS = 3000;
@@ -63,6 +66,9 @@ async function runMigrations(): Promise<void> {
       AddPremiumRequestsPerSeat1772800000000,
       AddTeamCarryForwardJobType1772900000000,
       AddRefreshTokenToSession1772950000000,
+      CreateGitHubApp1773000000000,
+      AddInstallationIdToGitHubApp1773100000000,
+      AddUserRole1773200000000,
     ],
     synchronize: false,
     logging: false,

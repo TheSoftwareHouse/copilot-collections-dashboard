@@ -508,6 +508,28 @@ describe("GET /api/usage/seats", () => {
       expect(json1.seats[0].githubUsername).not.toBe(json2.seats[0].githubUsername);
     });
 
+    it("sorts search results by sortBy and sortOrder params", async () => {
+      await seedAuthSession();
+      await seedSearchFixtures();
+
+      // "alice" matches alice-dev and bob-eng (via lastName "AliceJones")
+      // Sort by githubUsername ASC
+      const request = makeGetRequest({
+        month: "3",
+        year: "2026",
+        search: "alice",
+        sortBy: "githubUsername",
+        sortOrder: "asc",
+      });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(2);
+      expect(json.seats[0].githubUsername).toBe("alice-dev");
+      expect(json.seats[1].githubUsername).toBe("bob-eng");
+    });
+
     it("escapes special ILIKE characters in search term", async () => {
       await seedAuthSession();
 
@@ -554,6 +576,163 @@ describe("GET /api/usage/seats", () => {
       expect(json.total).toBe(1);
       expect(json.seats).toHaveLength(1);
       expect(json.seats[0].githubUsername).toBe("user_one");
+    });
+  });
+
+  describe("sorting parameters", () => {
+    async function seedSortFixtures() {
+      const alice = await seedSeat({
+        githubUsername: "alice-dev",
+        githubUserId: 4001,
+        firstName: "Alice",
+        lastName: "Smith",
+        department: "Engineering",
+      });
+      await seedUsage({
+        seatId: alice.id,
+        day: 1,
+        month: 2,
+        year: 2026,
+        usageItems: [
+          { product: "Copilot", sku: "Premium", model: "GPT-4o", unitType: "requests", pricePerUnit: 0.04, grossQuantity: 50, grossAmount: 2.0, discountQuantity: 0, discountAmount: 0, netQuantity: 50, netAmount: 2.0 },
+        ],
+      });
+
+      const bob = await seedSeat({
+        githubUsername: "bob-eng",
+        githubUserId: 4002,
+        firstName: "Bob",
+        lastName: "Jones",
+        department: "Design",
+      });
+      await seedUsage({
+        seatId: bob.id,
+        day: 1,
+        month: 2,
+        year: 2026,
+        usageItems: [
+          { product: "Copilot", sku: "Premium", model: "GPT-4o", unitType: "requests", pricePerUnit: 0.04, grossQuantity: 100, grossAmount: 4.0, discountQuantity: 0, discountAmount: 0, netQuantity: 100, netAmount: 4.0 },
+        ],
+      });
+
+      const charlie = await seedSeat({
+        githubUsername: "charlie-ops",
+        githubUserId: 4003,
+        firstName: "Charlie",
+        lastName: "Brown",
+        department: "Accounting",
+      });
+      await seedUsage({
+        seatId: charlie.id,
+        day: 1,
+        month: 2,
+        year: 2026,
+        usageItems: [
+          { product: "Copilot", sku: "Premium", model: "GPT-4o", unitType: "requests", pricePerUnit: 0.04, grossQuantity: 10, grossAmount: 0.4, discountQuantity: 0, discountAmount: 0, netQuantity: 10, netAmount: 0.4 },
+        ],
+      });
+
+      return { alice, bob, charlie };
+    }
+
+    it("default sort order is totalRequests DESC", async () => {
+      await seedAuthSession();
+      await seedSortFixtures();
+
+      const request = makeGetRequest({ month: "2", year: "2026" });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(3);
+      expect(json.seats[0].githubUsername).toBe("bob-eng");
+      expect(json.seats[1].githubUsername).toBe("alice-dev");
+      expect(json.seats[2].githubUsername).toBe("charlie-ops");
+    });
+
+    it("sorts by githubUsername ASC", async () => {
+      await seedAuthSession();
+      await seedSortFixtures();
+
+      const request = makeGetRequest({
+        month: "2",
+        year: "2026",
+        sortBy: "githubUsername",
+        sortOrder: "asc",
+      });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(3);
+      expect(json.seats[0].githubUsername).toBe("alice-dev");
+      expect(json.seats[1].githubUsername).toBe("bob-eng");
+      expect(json.seats[2].githubUsername).toBe("charlie-ops");
+    });
+
+    it("sorts by totalGrossAmount DESC", async () => {
+      await seedAuthSession();
+      await seedSortFixtures();
+
+      const request = makeGetRequest({
+        month: "2",
+        year: "2026",
+        sortBy: "totalGrossAmount",
+        sortOrder: "desc",
+      });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(3);
+      expect(json.seats[0].githubUsername).toBe("bob-eng");
+      expect(json.seats[0].totalGrossAmount).toBe(4.0);
+      expect(json.seats[1].githubUsername).toBe("alice-dev");
+      expect(json.seats[1].totalGrossAmount).toBe(2.0);
+      expect(json.seats[2].githubUsername).toBe("charlie-ops");
+      expect(json.seats[2].totalGrossAmount).toBeCloseTo(0.4, 2);
+    });
+
+    it("falls back to default sort when sortBy is invalid", async () => {
+      await seedAuthSession();
+      await seedSortFixtures();
+
+      const request = makeGetRequest({
+        month: "2",
+        year: "2026",
+        sortBy: "invalidField",
+        sortOrder: "asc",
+      });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      // Falls back to totalRequests, but sortOrder=asc is still honored
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(3);
+      expect(json.seats[0].githubUsername).toBe("charlie-ops");
+      expect(json.seats[1].githubUsername).toBe("alice-dev");
+      expect(json.seats[2].githubUsername).toBe("bob-eng");
+    });
+
+    it("falls back to default sort order when sortOrder is invalid", async () => {
+      await seedAuthSession();
+      await seedSortFixtures();
+
+      const request = makeGetRequest({
+        month: "2",
+        year: "2026",
+        sortBy: "totalRequests",
+        sortOrder: "invalid",
+      });
+      const response = await GET(request as never);
+      const json = await response.json();
+
+      // Falls back to desc
+      expect(response.status).toBe(200);
+      expect(json.seats).toHaveLength(3);
+      expect(json.seats[0].githubUsername).toBe("bob-eng");
+      expect(json.seats[1].githubUsername).toBe("alice-dev");
+      expect(json.seats[2].githubUsername).toBe("charlie-ops");
     });
   });
 });

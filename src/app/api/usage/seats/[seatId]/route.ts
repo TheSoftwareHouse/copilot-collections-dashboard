@@ -110,6 +110,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
       netSpending: Number(summaryResult[0]?.netSpending ?? 0),
     };
 
+    // Team memberships for this seat in the selected month
+    const teamRows: { teamId: number; teamName: string }[] =
+      await dataSource.query(
+        `SELECT t.id AS "teamId", t.name AS "teamName"
+         FROM team_member_snapshot tms
+         JOIN team t ON t.id = tms."teamId"
+         WHERE tms."seatId" = $1 AND tms.month = $2 AND tms.year = $3
+           AND t."deletedAt" IS NULL
+         ORDER BY t.name ASC`,
+        [seatId, month, year],
+      );
+
+    const teams = teamRows.map((row) => ({
+      teamId: Number(row.teamId),
+      teamName: row.teamName,
+    }));
+
     return NextResponse.json({
       seat: {
         seatId: seat.id,
@@ -117,10 +134,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
         firstName: seat.firstName,
         lastName: seat.lastName,
         department: seat.department,
+        departmentId: seat.departmentId,
       },
       summary,
       dailyUsage,
       modelBreakdown,
+      teams,
       month,
       year,
       premiumRequestsPerSeat,

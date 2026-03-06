@@ -1,6 +1,6 @@
 /// <reference types="vitest/globals" />
 import { describe, it, expect } from "vitest";
-import { getUsageColour, calcUsagePercent, getAllowanceThresholdColor, calcAllowanceTrend } from "@/lib/usage-helpers";
+import { getUsageColour, calcUsagePercent, getAllowanceThresholdColor, calcAllowanceTrend, getBarHexColor } from "@/lib/usage-helpers";
 
 describe("getUsageColour", () => {
   it("returns red for 0%", () => {
@@ -36,6 +36,36 @@ describe("getUsageColour", () => {
   it("returns green for 150% (over 100%)", () => {
     const result = getUsageColour(150);
     expect(result).toEqual({ bgClass: "bg-green-500", label: "High usage" });
+  });
+});
+
+describe("getBarHexColor", () => {
+  it("returns red hex for 0%", () => {
+    expect(getBarHexColor(0)).toBe("#ef4444");
+  });
+
+  it("returns red hex for 49.9%", () => {
+    expect(getBarHexColor(49.9)).toBe("#ef4444");
+  });
+
+  it("returns orange hex for 50%", () => {
+    expect(getBarHexColor(50)).toBe("#f97316");
+  });
+
+  it("returns orange hex for 89.9%", () => {
+    expect(getBarHexColor(89.9)).toBe("#f97316");
+  });
+
+  it("returns green hex for 90%", () => {
+    expect(getBarHexColor(90)).toBe("#22c55e");
+  });
+
+  it("returns green hex for 100%", () => {
+    expect(getBarHexColor(100)).toBe("#22c55e");
+  });
+
+  it("returns green hex for 150%", () => {
+    expect(getBarHexColor(150)).toBe("#22c55e");
   });
 });
 

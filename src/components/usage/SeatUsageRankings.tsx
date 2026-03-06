@@ -16,7 +16,6 @@ interface SeatRankingEntry {
 
 interface SeatRankingsResponse {
   mostActive: SeatRankingEntry[];
-  leastActive: SeatRankingEntry[];
   month: number;
   year: number;
 }
@@ -97,17 +96,10 @@ export default function SeatUsageRankings({ month, year }: SeatUsageRankingsProp
   );
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div>
       <RankingCard
         title="Most Active Seats"
         entries={data?.mostActive ?? []}
-        loading={loading}
-        month={month}
-        year={year}
-      />
-      <RankingCard
-        title="Least Active Seats"
-        entries={data?.leastActive ?? []}
         loading={loading}
         month={month}
         year={year}

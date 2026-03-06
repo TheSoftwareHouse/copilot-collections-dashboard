@@ -112,7 +112,7 @@ describe("GET /api/usage/seats/rankings", () => {
     expect(json.error).toBe("Authentication required");
   });
 
-  it("returns empty mostActive and leastActive arrays when no usage data exists", async () => {
+  it("returns empty arrays when no seats exist", async () => {
     await seedAuthSession();
 
     const request = makeGetRequest({ month: "2", year: "2026" });
@@ -126,6 +126,44 @@ describe("GET /api/usage/seats/rankings", () => {
       month: 2,
       year: 2026,
     });
+  });
+
+  it("returns active seats with 0 usage when they have no usage records for the month", async () => {
+    await seedAuthSession();
+
+    // Seat with usage
+    const seatWithUsage = await seedSeat({ githubUsername: "has-usage", githubUserId: 9001 });
+    await seedUsage({ seatId: seatWithUsage.id, day: 1, month: 2, year: 2026, usageItems: [makeUsageItem(150)] });
+
+    // Seat without any usage records
+    await seedSeat({ githubUsername: "no-usage", githubUserId: 9002 });
+
+    // Inactive seat should be excluded
+    await seedSeat({ githubUsername: "inactive-seat", githubUserId: 9003, status: SeatStatus.INACTIVE });
+
+    const request = makeGetRequest({ month: "2", year: "2026" });
+    const response = await GET(request as never);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+
+    // Both active seats should appear
+    expect(json.mostActive).toHaveLength(2);
+    expect(json.leastActive).toHaveLength(2);
+
+    // mostActive: highest usage first
+    expect(json.mostActive[0].githubUsername).toBe("has-usage");
+    expect(json.mostActive[0].totalRequests).toBe(150);
+    expect(json.mostActive[0].usagePercent).toBeCloseTo(50.0, 1);
+    expect(json.mostActive[1].githubUsername).toBe("no-usage");
+    expect(json.mostActive[1].totalRequests).toBe(0);
+    expect(json.mostActive[1].usagePercent).toBe(0);
+
+    // leastActive: lowest usage first
+    expect(json.leastActive[0].githubUsername).toBe("no-usage");
+    expect(json.leastActive[0].totalRequests).toBe(0);
+    expect(json.leastActive[0].usagePercent).toBe(0);
+    expect(json.leastActive[1].githubUsername).toBe("has-usage");
+    expect(json.leastActive[1].totalRequests).toBe(150);
   });
 
   it("returns top 5 seats ordered by usage percent descending with correct display info", async () => {

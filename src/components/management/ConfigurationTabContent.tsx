@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ConfigurationForm from "@/components/setup/ConfigurationForm";
+import GitHubConnectionCard from "@/components/management/GitHubConnectionCard";
 
 interface ConfigurationData {
   apiMode: string;
@@ -87,13 +88,14 @@ export default function ConfigurationTabContent() {
   }
 
   return (
-    <ConfigurationForm
-      mode="edit"
-      initialValues={{
-        apiMode: config.apiMode,
-        entityName: config.entityName,
-        premiumRequestsPerSeat: config.premiumRequestsPerSeat,
-      }}
-    />
+    <div className="space-y-6">
+      <GitHubConnectionCard />
+      <ConfigurationForm
+        mode="edit"
+        initialValues={{
+          premiumRequestsPerSeat: config.premiumRequestsPerSeat,
+        }}
+      />
+    </div>
   );
 }

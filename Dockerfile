@@ -21,6 +21,20 @@ ENV NODE_ENV=production
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 
 RUN npm run build
+
+# Turbopack standalone output does not include the instrumentation hook or its
+# chunk dependencies. Copy them from the full build into the standalone tree.
+RUN set -e; \
+    BASE=$(dirname "$(find .next/standalone -name server.js -maxdepth 3 | head -1)"); \
+    cp .next/server/instrumentation.js "$BASE/.next/server/"; \
+    cp -r .next/server/instrumentation "$BASE/.next/server/"; \
+    cp .next/server/chunks/*.js "$BASE/.next/server/chunks/"; \
+    for f in .next/node_modules/*; do \
+      if [ -L "$f" ]; then \
+        cp -rL "$f" "$BASE/.next/node_modules/$(basename "$f")"; \
+      fi; \
+    done
+
 RUN npx tsc --project tsconfig.typeorm.json
 
 # ---------------------------------------------------------------------------

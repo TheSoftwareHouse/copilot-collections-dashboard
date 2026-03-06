@@ -3,7 +3,7 @@ import { ILike } from "typeorm";
 import { getDb } from "@/lib/db";
 import { CopilotSeatEntity } from "@/entities/copilot-seat.entity";
 import { SeatStatus } from "@/entities/enums";
-import { requireAuth, isAuthFailure } from "@/lib/api-auth";
+import { requireAdmin, isAuthFailure } from "@/lib/api-auth";
 import { getPremiumAllowance } from "@/lib/get-premium-allowance";
 import { handleRouteError, escapeLikePattern } from "@/lib/api-helpers";
 import type { FindOptionsWhere, FindOptionsOrder } from "typeorm";
@@ -25,7 +25,7 @@ const SORTABLE_FIELDS = new Set([
 ]);
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthFailure(auth)) return auth;
 
   try {

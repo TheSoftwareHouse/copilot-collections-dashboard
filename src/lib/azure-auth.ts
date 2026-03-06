@@ -7,6 +7,7 @@ import {
   ArcticFetchError,
 } from "arctic";
 import { getAuthConfig } from "@/lib/auth-config";
+import { UserRole } from "@/entities/enums";
 
 export { generateState, generateCodeVerifier, decodeIdToken };
 
@@ -33,6 +34,7 @@ export interface IdTokenClaims {
   iss?: string;
   aud?: string;
   exp?: number;
+  roles?: string[];
 }
 
 let entraIdClient: MicrosoftEntraId | undefined;
@@ -99,6 +101,17 @@ export function mapArcticError(error: unknown): AzureAuthErrorCode {
     return "provider_unavailable";
   }
   return "auth_failed";
+}
+
+/**
+ * Map the Azure ID token `roles` claim to the application's UserRole.
+ * If the array contains "admin" (case-insensitive), returns ADMIN; otherwise USER.
+ */
+export function mapAzureRolesToAppRole(roles?: string[]): UserRole {
+  if (roles?.some((r) => r.toLowerCase() === "admin")) {
+    return UserRole.ADMIN;
+  }
+  return UserRole.USER;
 }
 
 /**

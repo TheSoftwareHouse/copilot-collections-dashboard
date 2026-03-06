@@ -149,10 +149,10 @@ test.describe("Team Usage — Team Tab", () => {
     await expect(teamTab).toHaveAttribute("aria-selected", "true");
 
     // Verify team row is visible
-    await expect(page.getByText("Frontend Team")).toBeVisible();
-    await expect(page.getByText("$12.00")).toBeVisible();
-    // Usage % column: 300 requests / (2 × 300) × 100 = 50%
     const row = page.getByRole("row").filter({ hasText: "Frontend Team" });
+    await expect(row).toBeVisible();
+    await expect(row.getByText("$12.00")).toBeVisible();
+    // Usage % column: 300 requests / (2 × 300) × 100 = 50%
     await expect(row.getByText("50%")).toBeVisible();
 
     // Usage status indicator should appear next to the team name
@@ -205,7 +205,8 @@ test.describe("Team Usage — Team Tab", () => {
     const teamTab = page.getByRole("tab", { name: "Team" });
     await teamTab.click();
 
-    await page.getByText("Navigate Team").click();
+    const table = page.getByRole("table");
+    await table.getByRole("link", { name: /Navigate Team/ }).first().click();
     await expect(page).toHaveURL(new RegExp(`/usage/teams/${teamId}`));
   });
 });
@@ -261,18 +262,20 @@ test.describe("Team Usage — Team Search", () => {
     const teamTab = page.getByRole("tab", { name: "Team" });
     await teamTab.click();
 
+    const table = page.getByRole("table");
+
     // All 3 teams visible initially
-    await expect(page.getByText("Frontend Team")).toBeVisible();
-    await expect(page.getByText("Backend Team")).toBeVisible();
-    await expect(page.getByText("Design Team")).toBeVisible();
+    await expect(table.getByText("Frontend Team")).toBeVisible();
+    await expect(table.getByText("Backend Team")).toBeVisible();
+    await expect(table.getByText("Design Team")).toBeVisible();
 
     const searchInput = page.getByPlaceholder("Search teams…");
     await searchInput.fill("Frontend");
 
-    // After debounce, only Frontend Team should appear
-    await expect(page.getByText("Frontend Team")).toBeVisible();
-    await expect(page.getByText("Backend Team")).not.toBeVisible();
-    await expect(page.getByText("Design Team")).not.toBeVisible();
+    // After debounce, only Frontend Team should appear in the table
+    await expect(table.getByText("Frontend Team")).toBeVisible();
+    await expect(table.getByText("Backend Team")).not.toBeVisible();
+    await expect(table.getByText("Design Team")).not.toBeVisible();
   });
 
   test("search is case-insensitive", async ({ page }) => {
@@ -282,11 +285,12 @@ test.describe("Team Usage — Team Search", () => {
     const teamTab = page.getByRole("tab", { name: "Team" });
     await teamTab.click();
 
+    const table = page.getByRole("table");
     const searchInput = page.getByPlaceholder("Search teams…");
     await searchInput.fill("frontend");
 
-    await expect(page.getByText("Frontend Team")).toBeVisible();
-    await expect(page.getByText("Backend Team")).not.toBeVisible();
+    await expect(table.getByText("Frontend Team")).toBeVisible();
+    await expect(table.getByText("Backend Team")).not.toBeVisible();
   });
 
   test("clearing the search input restores the full team list", async ({ page }) => {
@@ -296,17 +300,18 @@ test.describe("Team Usage — Team Search", () => {
     const teamTab = page.getByRole("tab", { name: "Team" });
     await teamTab.click();
 
+    const table = page.getByRole("table");
     const searchInput = page.getByPlaceholder("Search teams…");
     await searchInput.fill("Frontend");
-    await expect(page.getByText("Backend Team")).not.toBeVisible();
+    await expect(table.getByText("Backend Team")).not.toBeVisible();
 
     // Clear the search
     await searchInput.clear();
 
-    // All teams should reappear
-    await expect(page.getByText("Frontend Team")).toBeVisible();
-    await expect(page.getByText("Backend Team")).toBeVisible();
-    await expect(page.getByText("Design Team")).toBeVisible();
+    // All teams should reappear in the table
+    await expect(table.getByText("Frontend Team")).toBeVisible();
+    await expect(table.getByText("Backend Team")).toBeVisible();
+    await expect(table.getByText("Design Team")).toBeVisible();
   });
 
   test("empty state message is shown when search has no matches", async ({ page }) => {
@@ -329,12 +334,13 @@ test.describe("Team Usage — Team Search", () => {
     const teamTab = page.getByRole("tab", { name: "Team" });
     await teamTab.click();
 
+    const table = page.getByRole("table");
     const searchInput = page.getByPlaceholder("Search teams…");
     await searchInput.fill("Backend");
 
     // Wait for results to filter
-    await expect(page.getByText("Backend Team")).toBeVisible();
-    await expect(page.getByText("Frontend Team")).not.toBeVisible();
+    await expect(table.getByText("Backend Team")).toBeVisible();
+    await expect(table.getByText("Frontend Team")).not.toBeVisible();
 
     // URL should contain search param
     await expect(page).toHaveURL(/search=Backend/);
@@ -345,8 +351,8 @@ test.describe("Team Usage — Team Search", () => {
     // After reload, search should be pre-filled and results filtered
     const reloadedSearchInput = page.getByPlaceholder("Search teams…");
     await expect(reloadedSearchInput).toHaveValue("Backend");
-    await expect(page.getByText("Backend Team")).toBeVisible();
-    await expect(page.getByText("Frontend Team")).not.toBeVisible();
+    await expect(table.getByText("Backend Team")).toBeVisible();
+    await expect(table.getByText("Frontend Team")).not.toBeVisible();
   });
 });
 
@@ -536,7 +542,8 @@ test.describe("Team Usage — Team Detail", () => {
     await expect(teamTab).toHaveAttribute("aria-selected", "true");
 
     // Navigate to team detail
-    await page.getByText("Back Nav Team").click();
+    const table = page.getByRole("table");
+    await table.getByRole("link", { name: /Back Nav Team/ }).first().click();
     await expect(page).toHaveURL(new RegExp(`/usage/teams/${teamId}`));
 
     // Browser back
@@ -858,3 +865,300 @@ test.describe("Team Usage — Team Detail Member Search", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("Team Usage — Statistics Cards", () => {
+  const now = new Date();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentYear = now.getUTCFullYear();
+
+  test.beforeEach(async () => {
+    await clearAll();
+    await seedConfiguration();
+    await seedTestUser("admin", "password123");
+    await seedDashboardSummary(currentMonth, currentYear);
+  });
+
+  test.afterAll(async () => {
+    await clearAll();
+  });
+
+  test("stats cards show correct aggregate values for multiple teams", async ({ page }) => {
+    // Team A: 2 members — seat1 has 300 requests (capped at 300), seat2 has 150
+    // capped_total = 450, usage = 450 / (2×300) × 100 = 75%
+    const seat1Id = await seedSeat({ githubUsername: "stats-alice", githubUserId: 9001 });
+    const seat2Id = await seedSeat({ githubUsername: "stats-bob", githubUserId: 9002 });
+    const teamAId = await seedTeam("Stats Team A");
+    await seedMemberSnapshot(teamAId, seat1Id, currentMonth, currentYear);
+    await seedMemberSnapshot(teamAId, seat2Id, currentMonth, currentYear);
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 300, 12.0)]);
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 150, 6.0)]);
+
+    // Team B: 1 member — 120 requests → usage = 120 / 300 × 100 = 40%
+    const seat3Id = await seedSeat({ githubUsername: "stats-charlie", githubUserId: 9003 });
+    const teamBId = await seedTeam("Stats Team B");
+    await seedMemberSnapshot(teamBId, seat3Id, currentMonth, currentYear);
+    await seedUsage(seat3Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 120, 4.8)]);
+
+    // Team C: 1 member — 270 requests → usage = 270 / 300 × 100 = 90%
+    const seat4Id = await seedSeat({ githubUsername: "stats-dana", githubUserId: 9004 });
+    const teamCId = await seedTeam("Stats Team C");
+    await seedMemberSnapshot(teamCId, seat4Id, currentMonth, currentYear);
+    await seedUsage(seat4Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 270, 10.8)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    // Average = (75 + 40 + 90) / 3 = 68.3 → 68%
+    // Median = 75 (sorted: 40, 75, 90)
+    // Min = 40%
+    // Max = 90%
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("68%")).toBeVisible();
+
+    const medianCard = cards.locator("div").filter({ hasText: "Median Usage" });
+    await expect(medianCard.getByText("75%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("40%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("90%")).toBeVisible();
+  });
+
+  test("stats cards show dash when no teams have usage data", async ({ page }) => {
+    // No teams, no usage — cards should show "—"
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    const dashValues = cards.getByText("—");
+    await expect(dashValues).toHaveCount(4);
+  });
+
+  test("stats cards are not affected by search filter", async ({ page }) => {
+    // Seed 2 teams with different usage
+    const seat1Id = await seedSeat({ githubUsername: "search-s1", githubUserId: 9101 });
+    const teamAId = await seedTeam("Alpha Team");
+    await seedMemberSnapshot(teamAId, seat1Id, currentMonth, currentYear);
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 150, 6.0)]);
+
+    const seat2Id = await seedSeat({ githubUsername: "search-s2", githubUserId: 9102 });
+    const teamBId = await seedTeam("Beta Team");
+    await seedMemberSnapshot(teamBId, seat2Id, currentMonth, currentYear);
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 90, 3.6)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toHaveAttribute("aria-busy", "false");
+
+    // Both teams: Alpha = 150/300 × 100 = 50%, Beta = 90/300 × 100 = 30%
+    // Average = 40%, Min = 30%, Max = 50%
+    const averageCard = cards.locator("div").filter({ hasText: "Average Usage" });
+    await expect(averageCard.getByText("40%")).toBeVisible();
+
+    // Filter to only Alpha Team
+    const searchInput = page.getByPlaceholder("Search teams…");
+    await searchInput.fill("Alpha");
+    const table = page.getByRole("table");
+    await expect(table.getByText("Beta Team")).not.toBeVisible();
+
+    // Stats cards should STILL show global stats (not filtered)
+    await expect(averageCard.getByText("40%")).toBeVisible();
+
+    const minCard = cards.locator("div").filter({ hasText: "Minimum Usage" });
+    await expect(minCard.getByText("30%")).toBeVisible();
+
+    const maxCard = cards.locator("div").filter({ hasText: "Maximum Usage" });
+    await expect(maxCard.getByText("50%")).toBeVisible();
+  });
+
+  test("stats cards are visible above the search box", async ({ page }) => {
+    const seatId = await seedSeat({ githubUsername: "pos-user", githubUserId: 9201 });
+    const teamId = await seedTeam("Position Team");
+    await seedMemberSnapshot(teamId, seatId, currentMonth, currentYear);
+    await seedUsage(seatId, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 100, 4.0)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    const cards = page.locator("[aria-busy]").first();
+    await expect(cards).toBeVisible();
+
+    const searchInput = page.getByPlaceholder("Search teams…");
+    await expect(searchInput).toBeVisible();
+
+    // Verify cards appear above search by checking Y positions
+    const cardsBox = await cards.boundingBox();
+    const searchBox = await searchInput.boundingBox();
+    expect(cardsBox).toBeTruthy();
+    expect(searchBox).toBeTruthy();
+    expect(cardsBox!.y).toBeLessThan(searchBox!.y);
+  });
+});
+
+test.describe("Team Usage — Most Active Teams Rankings", () => {
+  const now = new Date();
+  const currentMonth = now.getUTCMonth() + 1;
+  const currentYear = now.getUTCFullYear();
+
+  test.beforeEach(async () => {
+    await clearAll();
+    await seedConfiguration();
+    await seedTestUser("admin", "password123");
+  });
+
+  test.afterAll(async () => {
+    await clearAll();
+  });
+
+  test("rankings section shows correct top entries ordered by usage percentage", async ({ page }) => {
+    await seedDashboardSummary(currentMonth, currentYear);
+
+    // Seed 3 teams with different usage levels (all below premiumRequestsPerSeat=300)
+    const seat1Id = await seedSeat({ githubUsername: "rank-alice", githubUserId: 7001 });
+    const seat2Id = await seedSeat({ githubUsername: "rank-bob", githubUserId: 7002 });
+    const seat3Id = await seedSeat({ githubUsername: "rank-charlie", githubUserId: 7003 });
+    const seat4Id = await seedSeat({ githubUsername: "rank-diana", githubUserId: 7004 });
+
+    const teamAId = await seedTeam("Alpha Squad");
+    await seedMemberSnapshot(teamAId, seat1Id, currentMonth, currentYear);
+    await seedMemberSnapshot(teamAId, seat2Id, currentMonth, currentYear);
+    // Alpha: (270 + 240) capped / (2 × 300) × 100 = 510/600 × 100 = 85%
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 270, 10.8)]);
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 240, 9.6)]);
+
+    const teamBId = await seedTeam("Beta Force");
+    await seedMemberSnapshot(teamBId, seat3Id, currentMonth, currentYear);
+    // Beta: 150 capped / (1 × 300) × 100 = 50%
+    await seedUsage(seat3Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 150, 6.0)]);
+
+    const teamCId = await seedTeam("Gamma Unit");
+    await seedMemberSnapshot(teamCId, seat4Id, currentMonth, currentYear);
+    // Gamma: 60 capped / (1 × 300) × 100 = 20%
+    await seedUsage(seat4Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 60, 2.4)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    // Verify the heading is visible
+    const rankingsCard = page.locator(".rounded-lg").filter({ has: page.getByRole("heading", { name: "Most Active Teams" }) });
+    await expect(rankingsCard).toBeVisible();
+
+    // Verify entries in order: Alpha (85%), Beta (50%), Gamma (20%)
+    const entries = rankingsCard.locator("li");
+    await expect(entries).toHaveCount(3);
+
+    const firstEntry = entries.nth(0);
+    await expect(firstEntry.getByText("Alpha Squad")).toBeVisible();
+    await expect(firstEntry.getByText("2 members")).toBeVisible();
+    await expect(firstEntry.getByText("85%")).toBeVisible();
+
+    const secondEntry = entries.nth(1);
+    await expect(secondEntry.getByText("Beta Force")).toBeVisible();
+    await expect(secondEntry.getByText("1 member", { exact: true })).toBeVisible();
+    await expect(secondEntry.getByText("50%")).toBeVisible();
+
+    const thirdEntry = entries.nth(2);
+    await expect(thirdEntry.getByText("Gamma Unit")).toBeVisible();
+    await expect(thirdEntry.getByText("1 member", { exact: true })).toBeVisible();
+    await expect(thirdEntry.getByText("20%")).toBeVisible();
+  });
+
+  test("clicking a ranking entry navigates to team detail page", async ({ page }) => {
+    await seedDashboardSummary(currentMonth, currentYear);
+
+    const seatId = await seedSeat({ githubUsername: "rank-nav", githubUserId: 7101 });
+    const teamId = await seedTeam("Clickable Team");
+    await seedMemberSnapshot(teamId, seatId, currentMonth, currentYear);
+    await seedUsage(seatId, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 100, 4.0)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    const rankingsCard = page.locator(".rounded-lg").filter({ has: page.getByRole("heading", { name: "Most Active Teams" }) });
+    await expect(rankingsCard).toBeVisible();
+
+    // Click the team name in the rankings
+    await rankingsCard.getByText("Clickable Team").click();
+
+    await expect(page).toHaveURL(new RegExp(`/usage/teams/${teamId}`));
+  });
+
+  test("shows empty state when no teams have usage data", async ({ page }) => {
+    await seedDashboardSummary(currentMonth, currentYear);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    const rankingsCard = page.locator(".rounded-lg").filter({ has: page.getByRole("heading", { name: "Most Active Teams" }) });
+    await expect(rankingsCard).toBeVisible();
+    await expect(rankingsCard.getByText("No usage data for this month.")).toBeVisible();
+  });
+
+  test("rankings are not affected by search filter", async ({ page }) => {
+    await seedDashboardSummary(currentMonth, currentYear);
+
+    const seat1Id = await seedSeat({ githubUsername: "rank-s1", githubUserId: 7201 });
+    const seat2Id = await seedSeat({ githubUsername: "rank-s2", githubUserId: 7202 });
+
+    const teamAId = await seedTeam("Searchable Team");
+    await seedMemberSnapshot(teamAId, seat1Id, currentMonth, currentYear);
+    await seedUsage(seat1Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 200, 8.0)]);
+
+    const teamBId = await seedTeam("Hidden Team");
+    await seedMemberSnapshot(teamBId, seat2Id, currentMonth, currentYear);
+    await seedUsage(seat2Id, 1, currentMonth, currentYear, [makeUsageItem("GPT-4o", 90, 3.6)]);
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/usage");
+
+    const teamTab = page.getByRole("tab", { name: "Team" });
+    await teamTab.click();
+
+    // Both teams should appear in rankings
+    const rankingsCard = page.locator(".rounded-lg").filter({ has: page.getByRole("heading", { name: "Most Active Teams" }) });
+    await expect(rankingsCard.getByText("Searchable Team")).toBeVisible();
+    await expect(rankingsCard.getByText("Hidden Team")).toBeVisible();
+
+    // Filter to only "Searchable Team" — table should filter but rankings should not
+    const searchInput = page.getByPlaceholder("Search teams…");
+    await searchInput.fill("Searchable");
+
+    // Table should be filtered — "Hidden Team" should not appear in the table
+    await expect(page.getByRole("row").filter({ hasText: "Hidden Team" })).not.toBeVisible();
+
+    // Rankings should still show both teams
+    await expect(rankingsCard.getByText("Searchable Team")).toBeVisible();
+    await expect(rankingsCard.getByText("Hidden Team")).toBeVisible();
+  });
+});
+
+

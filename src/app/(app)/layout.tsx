@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { ConfigurationEntity } from "@/entities/configuration.entity";
 import { getSession } from "@/lib/auth";
 import NavBar from "@/components/NavBar";
+import ConnectionHealthBanner from "@/components/shared/ConnectionHealthBanner";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +29,9 @@ export default async function AppLayout({
   return (
     <>
       <Suspense>
-        <NavBar />
+        <NavBar userRole={session.user.role} />
       </Suspense>
+      <ConnectionHealthBanner />
       {children}
     </>
   );

@@ -8,6 +8,8 @@ import {
   type GitHubUsageResponse,
 } from "@/lib/github-api";
 
+const TEST_TOKEN = "ghp_test_token_123";
+
 function makeSeatsResponse(
   count: number,
   totalSeats: number,
@@ -33,27 +35,12 @@ function makeSeatsResponse(
 }
 
 describe("fetchAllCopilotSeats", () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
-    process.env = { ...originalEnv, GITHUB_TOKEN: "ghp_test_token_123" };
     vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
-    process.env = originalEnv;
     vi.restoreAllMocks();
-  });
-
-  it("throws error when GITHUB_TOKEN is not set", async () => {
-    delete process.env.GITHUB_TOKEN;
-
-    await expect(
-      fetchAllCopilotSeats({
-        apiMode: ApiMode.ORGANISATION,
-        entityName: "my-org",
-      })
-    ).rejects.toThrow("GITHUB_TOKEN environment variable is not set");
   });
 
   it("fetches single page of seats for organisation mode with correct URL and headers", async () => {
@@ -65,7 +52,7 @@ describe("fetchAllCopilotSeats", () => {
     const seats = await fetchAllCopilotSeats({
       apiMode: ApiMode.ORGANISATION,
       entityName: "my-org",
-    });
+    }, TEST_TOKEN);
 
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(
@@ -73,7 +60,7 @@ describe("fetchAllCopilotSeats", () => {
       {
         headers: {
           Accept: "application/vnd.github+json",
-          Authorization: "Bearer ghp_test_token_123",
+          Authorization: `Bearer ${TEST_TOKEN}`,
           "X-GitHub-Api-Version": "2022-11-28",
         },
       }
@@ -91,7 +78,7 @@ describe("fetchAllCopilotSeats", () => {
     const seats = await fetchAllCopilotSeats({
       apiMode: ApiMode.ENTERPRISE,
       entityName: "my-enterprise",
-    });
+    }, TEST_TOKEN);
 
     expect(fetch).toHaveBeenCalledWith(
       "https://api.github.com/enterprises/my-enterprise/copilot/billing/seats?page=1&per_page=100",
@@ -115,7 +102,7 @@ describe("fetchAllCopilotSeats", () => {
     const seats = await fetchAllCopilotSeats({
       apiMode: ApiMode.ORGANISATION,
       entityName: "big-org",
-    });
+    }, TEST_TOKEN);
 
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenNthCalledWith(
@@ -145,7 +132,7 @@ describe("fetchAllCopilotSeats", () => {
       await fetchAllCopilotSeats({
         apiMode: ApiMode.ORGANISATION,
         entityName: "my-org",
-      });
+      }, TEST_TOKEN);
       expect.unreachable("Should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(GitHubApiError);
@@ -168,7 +155,7 @@ describe("fetchAllCopilotSeats", () => {
       fetchAllCopilotSeats({
         apiMode: ApiMode.ENTERPRISE,
         entityName: "my-ent",
-      })
+      }, TEST_TOKEN)
     ).rejects.toThrow(GitHubApiError);
   });
 
@@ -181,26 +168,23 @@ describe("fetchAllCopilotSeats", () => {
     const seats = await fetchAllCopilotSeats({
       apiMode: ApiMode.ORGANISATION,
       entityName: "empty-org",
-    });
+    }, TEST_TOKEN);
 
     expect(seats).toEqual([]);
   });
 });
 
 describe("fetchPremiumRequestUsage", () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
-    process.env = { ...originalEnv, GITHUB_TOKEN: "ghp_test_token_123" };
     vi.stubGlobal("fetch", vi.fn());
   });
 
   afterEach(() => {
-    process.env = originalEnv;
     vi.restoreAllMocks();
   });
 
   const defaultConfig = {
+    apiMode: ApiMode.ORGANISATION,
     entityName: "my-org",
     username: "octocat",
     day: 15,
@@ -229,20 +213,12 @@ describe("fetchPremiumRequestUsage", () => {
     ],
   };
 
-  it("throws error when GITHUB_TOKEN is not set", async () => {
-    delete process.env.GITHUB_TOKEN;
-
-    await expect(
-      fetchPremiumRequestUsage(defaultConfig)
-    ).rejects.toThrow("GITHUB_TOKEN environment variable is not set");
-  });
-
   it("fetches usage data with correct URL including query parameters", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify(sampleResponse), { status: 200 })
     );
 
-    await fetchPremiumRequestUsage(defaultConfig);
+    await fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN);
 
     expect(fetch).toHaveBeenCalledOnce();
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
@@ -255,19 +231,37 @@ describe("fetchPremiumRequestUsage", () => {
     expect(calledUrl).toContain("year=2026");
   });
 
+  it("fetches usage data with enterprise URL when apiMode is enterprise", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify(sampleResponse), { status: 200 })
+    );
+
+    await fetchPremiumRequestUsage({
+      ...defaultConfig,
+      apiMode: ApiMode.ENTERPRISE,
+      entityName: "my-enterprise",
+    }, TEST_TOKEN);
+
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
+    expect(calledUrl).toContain(
+      "https://api.github.com/enterprises/my-enterprise/settings/billing/premium_request/usage?"
+    );
+    expect(calledUrl).toContain("user=octocat");
+  });
+
   it("sends correct authorization headers", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response(JSON.stringify(sampleResponse), { status: 200 })
     );
 
-    await fetchPremiumRequestUsage(defaultConfig);
+    await fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
       {
         headers: {
           Accept: "application/vnd.github+json",
-          Authorization: "Bearer ghp_test_token_123",
+          Authorization: `Bearer ${TEST_TOKEN}`,
           "X-GitHub-Api-Version": "2022-11-28",
         },
       }
@@ -279,7 +273,7 @@ describe("fetchPremiumRequestUsage", () => {
       new Response(JSON.stringify(sampleResponse), { status: 200 })
     );
 
-    const result = await fetchPremiumRequestUsage(defaultConfig);
+    const result = await fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN);
 
     expect(result.timePeriod).toEqual({ year: 2026, month: 2, day: 15 });
     expect(result.user).toBe("octocat");
@@ -299,7 +293,7 @@ describe("fetchPremiumRequestUsage", () => {
       new Response(JSON.stringify(emptyUsageResponse), { status: 200 })
     );
 
-    const result = await fetchPremiumRequestUsage(defaultConfig);
+    const result = await fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN);
 
     expect(result.usageItems).toEqual([]);
   });
@@ -313,7 +307,7 @@ describe("fetchPremiumRequestUsage", () => {
     );
 
     try {
-      await fetchPremiumRequestUsage(defaultConfig);
+      await fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN);
       expect.unreachable("Should have thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(GitHubApiError);
@@ -331,7 +325,7 @@ describe("fetchPremiumRequestUsage", () => {
     );
 
     await expect(
-      fetchPremiumRequestUsage(defaultConfig)
+      fetchPremiumRequestUsage(defaultConfig, TEST_TOKEN)
     ).rejects.toThrow(GitHubApiError);
   });
 
@@ -343,7 +337,7 @@ describe("fetchPremiumRequestUsage", () => {
     await fetchPremiumRequestUsage({
       ...defaultConfig,
       entityName: "my org/special",
-    });
+    }, TEST_TOKEN);
 
     const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
     expect(calledUrl).toContain("organizations/my%20org%2Fspecial/");
@@ -351,17 +345,13 @@ describe("fetchPremiumRequestUsage", () => {
 });
 
 describe("rate limit header logging", () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
-    process.env = { ...originalEnv, GITHUB_TOKEN: "ghp_test_token_123" };
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    process.env = originalEnv;
     vi.restoreAllMocks();
   });
 
@@ -371,6 +361,7 @@ describe("rate limit header logging", () => {
   };
 
   const usageConfig = {
+    apiMode: ApiMode.ORGANISATION,
     entityName: "my-org",
     username: "octocat",
     day: 15,
@@ -412,7 +403,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await fetchAllCopilotSeats(seatsConfig);
+    await fetchAllCopilotSeats(seatsConfig, TEST_TOKEN);
 
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining("4500 requests remaining"),
@@ -434,7 +425,7 @@ describe("rate limit header logging", () => {
         makeResponseWithRateLimitHeaders(page2, 200, "4799", "1740700800"),
       );
 
-    await fetchAllCopilotSeats(seatsConfig);
+    await fetchAllCopilotSeats(seatsConfig, TEST_TOKEN);
 
     const logCalls = vi.mocked(console.log).mock.calls
       .map((c) => c[0] as string)
@@ -455,7 +446,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await expect(fetchAllCopilotSeats(seatsConfig)).rejects.toThrow(
+    await expect(fetchAllCopilotSeats(seatsConfig, TEST_TOKEN)).rejects.toThrow(
       GitHubApiError,
     );
 
@@ -474,7 +465,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await fetchPremiumRequestUsage(usageConfig);
+    await fetchPremiumRequestUsage(usageConfig, TEST_TOKEN);
 
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining("3200 requests remaining"),
@@ -491,7 +482,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await expect(fetchPremiumRequestUsage(usageConfig)).rejects.toThrow(
+    await expect(fetchPremiumRequestUsage(usageConfig, TEST_TOKEN)).rejects.toThrow(
       GitHubApiError,
     );
 
@@ -510,7 +501,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await fetchPremiumRequestUsage(usageConfig);
+    await fetchPremiumRequestUsage(usageConfig, TEST_TOKEN);
 
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining("rate limit LOW"),
@@ -530,7 +521,7 @@ describe("rate limit header logging", () => {
       ),
     );
 
-    await fetchPremiumRequestUsage(usageConfig);
+    await fetchPremiumRequestUsage(usageConfig, TEST_TOKEN);
 
     expect(console.warn).not.toHaveBeenCalled();
   });
@@ -540,7 +531,7 @@ describe("rate limit header logging", () => {
       new Response(JSON.stringify(sampleUsageResponse), { status: 200 }),
     );
 
-    await fetchPremiumRequestUsage(usageConfig);
+    await fetchPremiumRequestUsage(usageConfig, TEST_TOKEN);
 
     const rateLimitLogs = vi.mocked(console.log).mock.calls
       .map((c) => c[0] as string)
@@ -561,7 +552,7 @@ describe("rate limit header logging", () => {
       }),
     );
 
-    await fetchPremiumRequestUsage(usageConfig);
+    await fetchPremiumRequestUsage(usageConfig, TEST_TOKEN);
 
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining("unknown requests remaining"),

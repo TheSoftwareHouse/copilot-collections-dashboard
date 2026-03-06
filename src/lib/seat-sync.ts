@@ -7,6 +7,7 @@ import {
 } from "@/entities/copilot-seat.entity";
 import { JobType, JobStatus, SeatStatus } from "@/entities/enums";
 import { fetchAllCopilotSeats } from "@/lib/github-api";
+import { getInstallationToken, NoOrgConnectedError } from "@/lib/github-app-token";
 import { refreshDashboardMetrics } from "@/lib/dashboard-metrics";
 import { ERROR_MESSAGE_MAX_LENGTH } from "@/lib/constants";
 import { acquireJobLock } from "@/lib/job-lock";
@@ -33,6 +34,18 @@ export async function executeSeatSync(): Promise<SeatSyncResult> {
     return { skipped: true, reason: "no_configuration" };
   }
 
+  // Generate installation access token before acquiring lock
+  let token: string;
+  try {
+    token = await getInstallationToken();
+  } catch (error) {
+    if (error instanceof NoOrgConnectedError) {
+      console.warn(`Seat sync skipped: ${error.message}`);
+      return { skipped: true, reason: "no_org_connected" };
+    }
+    throw error;
+  }
+
   // Concurrency guard: atomically check for a running job and create one
   const lockResult = await acquireJobLock(dataSource, JobType.SEAT_SYNC);
   if (!lockResult.acquired) {
@@ -48,7 +61,7 @@ export async function executeSeatSync(): Promise<SeatSyncResult> {
     const seats = await fetchAllCopilotSeats({
       apiMode: config.apiMode,
       entityName: config.entityName,
-    });
+    }, token);
 
     console.log(`Fetched ${seats.length} seats from GitHub API`);
 

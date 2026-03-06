@@ -26,13 +26,25 @@ vi.mock("@/lib/github-api", () => ({
   fetchPremiumRequestUsage: vi.fn(),
 }));
 
+vi.mock("@/lib/github-app-token", () => ({
+  getInstallationToken: vi.fn(),
+  NoOrgConnectedError: class NoOrgConnectedError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "NoOrgConnectedError";
+    }
+  },
+}));
+
 vi.mock("@/lib/dashboard-metrics", () => ({
   refreshDashboardMetrics: vi.fn(),
 }));
 
 const { executeUsageCollection } = await import("@/lib/usage-collection");
 const { fetchPremiumRequestUsage } = await import("@/lib/github-api");
+const { getInstallationToken, NoOrgConnectedError } = await import("@/lib/github-app-token");
 const mockedFetchUsage = vi.mocked(fetchPremiumRequestUsage);
+const mockedGetToken = vi.mocked(getInstallationToken);
 
 function makeUsageResponse(
   username: string,
@@ -106,6 +118,7 @@ describe("executeUsageCollection", () => {
   beforeEach(async () => {
     await cleanDatabase(testDs);
     vi.clearAllMocks();
+    mockedGetToken.mockResolvedValue("test-installation-token");
   });
 
   it("skips collection when no configuration exists", async () => {
@@ -113,6 +126,23 @@ describe("executeUsageCollection", () => {
 
     expect(result.skipped).toBe(true);
     expect(result.reason).toBe("no_configuration");
+
+    // No JobExecution should be created
+    const jobRepo = testDs.getRepository(JobExecutionEntity);
+    const jobs = await jobRepo.find();
+    expect(jobs).toHaveLength(0);
+  });
+
+  it("skips collection when no org is connected", async () => {
+    await seedConfiguration(testDs);
+    mockedGetToken.mockRejectedValueOnce(
+      new NoOrgConnectedError("No GitHub App configured"),
+    );
+
+    const result = await executeUsageCollection();
+
+    expect(result.skipped).toBe(true);
+    expect(result.reason).toBe("no_org_connected");
 
     // No JobExecution should be created
     const jobRepo = testDs.getRepository(JobExecutionEntity);
@@ -219,10 +249,13 @@ describe("executeUsageCollection", () => {
     expect(mockedFetchUsage).toHaveBeenCalledOnce();
     expect(mockedFetchUsage).toHaveBeenCalledWith(
       expect.objectContaining({
+        apiMode: ApiMode.ORGANISATION,
+        entityName: "test-org",
         day: today.day,
         month: today.month,
         year: today.year,
-      })
+      }),
+      expect.any(String),
     );
   });
 
@@ -403,6 +436,32 @@ describe("executeUsageCollection", () => {
     expect(result.recordsProcessed).toBe(0);
     expect(result.usersProcessed).toBe(0);
     expect(mockedFetchUsage).not.toHaveBeenCalled();
+  });
+
+  it("passes enterprise apiMode to fetchPremiumRequestUsage when configured", async () => {
+    const configRepo = testDs.getRepository(ConfigurationEntity);
+    await configRepo.save({
+      apiMode: ApiMode.ENTERPRISE,
+      entityName: "test-enterprise",
+    });
+
+    await seedSeat(testDs, "enterprise-user");
+    const today = todayTuple();
+
+    mockedFetchUsage.mockResolvedValueOnce(
+      makeUsageResponse("enterprise-user", today.day, today.month, today.year)
+    );
+
+    const result = await executeUsageCollection();
+
+    expect(result.skipped).toBe(false);
+    expect(mockedFetchUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiMode: ApiMode.ENTERPRISE,
+        entityName: "test-enterprise",
+      }),
+      expect.any(String),
+    );
   });
 });
 

@@ -8,6 +8,20 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
+const SORTABLE_FIELDS = new Set([
+  "githubUsername",
+  "totalRequests",
+  "totalGrossAmount",
+  "department",
+]);
+
+const SORT_COLUMN_MAP: Record<string, string> = {
+  githubUsername: 'cs."githubUsername"',
+  totalRequests: 'st."totalRequests"',
+  totalGrossAmount: 'st."totalGrossAmount"',
+  department: 'cs."department"',
+};
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
@@ -35,6 +49,15 @@ export async function GET(request: NextRequest) {
     if (pageSize > MAX_PAGE_SIZE) pageSize = MAX_PAGE_SIZE;
 
     const searchParam = (searchParams.get("search") ?? "").trim();
+
+    const sortByParam = searchParams.get("sortBy") ?? "";
+    const sortBy = SORTABLE_FIELDS.has(sortByParam) ? sortByParam : "totalRequests";
+
+    const sortOrderParam = (searchParams.get("sortOrder") ?? "").toLowerCase();
+    const sortOrder: "asc" | "desc" =
+      sortOrderParam === "asc" ? "asc" : "desc";
+
+    const orderByClause = `${SORT_COLUMN_MAP[sortBy]} ${sortOrder === "asc" ? "ASC" : "DESC"}`;
 
     const dataSource = await getDb();
     const premiumRequestsPerSeat = await getPremiumAllowance();
@@ -129,7 +152,7 @@ export async function GET(request: NextRequest) {
            st.models::text AS models
          FROM seat_totals st
          JOIN copilot_seat cs ON cs.id = st."seatId"
-         ORDER BY st."totalRequests" DESC
+         ORDER BY ${orderByClause}
          LIMIT $4 OFFSET $5`,
         [month, year, likePattern, pageSize, offset],
       );
@@ -242,7 +265,7 @@ export async function GET(request: NextRequest) {
          st.models::text AS models
        FROM seat_totals st
        JOIN copilot_seat cs ON cs.id = st."seatId"
-       ORDER BY st."totalRequests" DESC
+       ORDER BY ${orderByClause}
        LIMIT $3 OFFSET $4`,
       [month, year, pageSize, offset],
     );

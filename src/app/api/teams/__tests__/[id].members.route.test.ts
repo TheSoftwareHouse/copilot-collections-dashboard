@@ -38,12 +38,14 @@ const { TeamMemberSnapshotEntity } = await import(
 );
 const { CopilotSeatEntity } = await import("@/entities/copilot-seat.entity");
 
-async function seedAuthSession(): Promise<void> {
+async function seedAuthSession(options?: { role?: string }): Promise<void> {
   const { UserEntity } = await import("@/entities/user.entity");
+  const { UserRole } = await import("@/entities/enums");
   const userRepo = testDs.getRepository(UserEntity);
   const user = await userRepo.save({
     username: "testadmin",
     passwordHash: await hashPassword("testpass"),
+    role: options?.role ?? UserRole.ADMIN,
   });
   const token = await createSession(user.id);
   mockCookieStore[SESSION_COOKIE_NAME] = token;
@@ -136,6 +138,16 @@ describe("GET /api/teams/[id]/members", () => {
     expect(response.status).toBe(401);
   });
 
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const [req, ctx] = makeGetRequest(1);
+    const response = await GET(req, ctx);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
+  });
+
   it("returns 400 for invalid ID", async () => {
     await seedAuthSession();
     const [req, ctx] = makeGetRequest("abc");
@@ -220,6 +232,16 @@ describe("POST /api/teams/[id]/members", () => {
     const [req, ctx] = makePostRequest(1, { seatIds: [1] });
     const response = await POST(req, ctx);
     expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const [req, ctx] = makePostRequest(1, { seatIds: [1] });
+    const response = await POST(req, ctx);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 400 for invalid team ID", async () => {
@@ -392,6 +414,16 @@ describe("DELETE /api/teams/[id]/members", () => {
     const [req, ctx] = makeDeleteRequest(1, { seatIds: [1] });
     const response = await DELETE(req, ctx);
     expect(response.status).toBe(401);
+  });
+
+  it("returns 403 for non-admin user", async () => {
+    const { UserRole } = await import("@/entities/enums");
+    await seedAuthSession({ role: UserRole.USER });
+    const [req, ctx] = makeDeleteRequest(1, { seatIds: [1] });
+    const response = await DELETE(req, ctx);
+    expect(response.status).toBe(403);
+    const json = await response.json();
+    expect(json.error).toBe("Admin access required");
   });
 
   it("returns 400 for invalid team ID", async () => {

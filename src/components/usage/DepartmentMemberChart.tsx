@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { getBarHexColor, calcUsagePercent } from "@/lib/usage-helpers";
+
 interface MemberChartEntry {
   seatId: number;
   githubUsername: string;
@@ -21,15 +23,6 @@ interface DepartmentMemberChartProps {
   members: MemberChartEntry[];
   premiumRequestsPerSeat: number;
   onBarClick?: (seatId: number) => void;
-}
-
-function getBarColor(totalRequests: number, premiumRequestsPerSeat: number): string {
-  const percent = premiumRequestsPerSeat > 0
-    ? (totalRequests / premiumRequestsPerSeat) * 100
-    : 0;
-  if (percent >= 100) return "#22c55e";
-  if (percent >= 51) return "#f97316";
-  return "#ef4444";
 }
 
 export default function DepartmentMemberChart({
@@ -89,7 +82,7 @@ export default function DepartmentMemberChart({
             {sortedMembers.map((member) => (
               <Cell
                 key={member.seatId}
-                fill={getBarColor(member.totalRequests, premiumRequestsPerSeat)}
+                fill={getBarHexColor(calcUsagePercent(member.totalRequests, premiumRequestsPerSeat))}
               />
             ))}
           </Bar>

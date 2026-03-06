@@ -165,6 +165,7 @@ describe("refreshDashboardMetrics", () => {
     expect(summary!.mostActiveUsers[0].githubUsername).toBe("heavy-1");
     expect(summary!.mostActiveUsers[0].totalRequests).toBe(500);
     expect(summary!.mostActiveUsers[0].totalSpending).toBe(250); // 500 * 0.5
+    expect(typeof summary!.mostActiveUsers[0].seatId).toBe("number");
     expect(summary!.mostActiveUsers[4].githubUsername).toBe("heavy-5");
     expect(summary!.mostActiveUsers[4].totalRequests).toBe(100);
     expect(summary!.mostActiveUsers[4].totalSpending).toBe(50); // 100 * 0.5
@@ -204,6 +205,7 @@ describe("refreshDashboardMetrics", () => {
     expect(summary!.leastActiveUsers[0].githubUsername).toBe("light-1");
     expect(summary!.leastActiveUsers[0].totalRequests).toBe(25);
     expect(summary!.leastActiveUsers[0].totalSpending).toBe(12.5); // 25 * 0.5
+    expect(typeof summary!.leastActiveUsers[0].seatId).toBe("number");
     expect(summary!.leastActiveUsers[4].githubUsername).toBe("light-5");
     expect(summary!.leastActiveUsers[4].totalRequests).toBe(125);
     expect(summary!.leastActiveUsers[4].totalSpending).toBe(62.5); // 125 * 0.5
