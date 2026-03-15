@@ -6,6 +6,12 @@ Built with [Copilot Collections](https://copilot-collections.tsh.io) by [The Sof
 
 ---
 
+<p align="center">
+  <img src="images/dashboard.png" width="32%" />
+  <img src="images/seats-usage.png" width="32%" />
+  <img src="images/department-usage.png" width="32%" />
+</p>
+
 ## 🤔 The Problem
 
 GitHub Copilot is a powerful tool, but organizations adopting it at scale face real challenges:
@@ -15,6 +21,11 @@ GitHub Copilot is a powerful tool, but organizations adopting it at scale face r
 - 👥 **No team-level accountability** — Engineering managers can't see how their team's usage compares to others, making it impossible to justify costs or encourage adoption.
 - 🚨 **Premium request overruns** — Each seat includes an allowance of premium requests. When users exceed it, the organization pays extra — often without realizing it until the invoice arrives.
 - 📉 **Historical tracking is missing** — Team compositions change month-over-month, but there's no built-in way to track usage trends over time as people move between teams.
+
+<p align="center">
+  <img src="images/team-usage.png" width="49%" />
+  <img src="images/seat-usage.png" width="49%" />
+</p>
 
 ## ✨ Key Features
 
