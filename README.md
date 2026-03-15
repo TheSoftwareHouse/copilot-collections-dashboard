@@ -20,38 +20,25 @@ GitHub Copilot is a powerful tool, but organizations adopting it at scale face r
 
 ### 📊 Dashboard & Analytics
 - **Monthly usage overview** with total seats, active seats, spending, and premium request metrics at a glance
+- **Per-user breakdown** — see exactly how many premium requests each person used and what it cost
 - **Allowance tracking** — see included vs. used vs. paid premium requests with visual progress indicators
 - **Model-level cost breakdown** — understand spending per AI model (Claude Sonnet, GPT-4o, etc.)
 - **Most & least active users** — instantly spot top contributors and inactive seats
 - **Spending breakdown** — separate seat license costs from paid premium request overage
-
-### 💺 Seat Management
-- **Automatic seat sync** from GitHub API — supports both organization and enterprise endpoints
-- **Status tracking** — active and inactive seats flagged automatically
-- **Editable metadata** — assign first name, last name, and department to each seat
-- **Search, filter, and sort** — find any seat by username, name, status, or department
-
-### 🏢 Team & Department Organization
-- **Teams** — group seats into teams, track usage per team, and compare across teams
-- **Departments** — organize seats into departments for higher-level reporting
 - **Monthly snapshots** — team compositions are tracked per month so historical comparisons remain accurate even when people move between teams
-- **Team carry-forward** — automatic job copies team membership into each new month
-
-### 📈 Usage Reporting
-- **Three views**: Seat, Team, and Department — each with per-month, paginated usage data
-- **Per-user breakdown** — see exactly how many premium requests each person used and what it cost
-- **Team & department aggregation** — rolled-up metrics for management-level reporting
 
 ### ⚙️ Automated Data Collection
 - **Background jobs** run on a configurable schedule (default: daily at midnight UTC)
 - **Seat sync** pulls the latest seat list from GitHub
 - **Usage collection** fetches premium request data for each active seat
-- **Pessimistic locking** prevents duplicate runs in multi-instance deployments
-- **Run-on-startup option** for immediate data collection after deployment
+
+### 💺 Organisation Management
+- **Teams** — group seats into teams, track usage per team, and compare across teams
+- **Departments** — organize seats into departments for higher-level reporting
+- **Editable metadata** — assign first name, last name, and department to each seat
 
 ### 🔐 Security & Authentication
 - **Two authentication modes**: built-in credentials or Azure Entra ID (Azure AD) via OAuth 2.0 PKCE
-- **User role management** — admin and regular user roles with access controls
 - **GitHub App integration** — no long-lived tokens. Credentials are stored encrypted in the database using AES-256
 - **Setup wizard** — guided first-run flow creates the GitHub App, installs it on your organization, and configures everything through the UI
 
