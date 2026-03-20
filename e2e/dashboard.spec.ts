@@ -491,6 +491,53 @@ test.describe("Dashboard", () => {
       page.getByRole("heading", { name: /daily premium requests/i }),
     ).toBeHidden();
   });
+
+  test("should show chart legend with current and previous month names when previous month usage data exists", async ({ page }) => {
+    const now = new Date();
+    const currentMonth = now.getUTCMonth() + 1;
+    const currentYear = now.getUTCFullYear();
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    await seedDashboardSummary();
+    const seatId = await seedCopilotSeat({ githubUsername: "legend-user" });
+    await seedCopilotUsage({ seatId, day: 1, month: currentMonth, year: currentYear });
+    await seedCopilotUsage({ seatId, day: 1, month: prevMonth, year: prevYear });
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/dashboard");
+
+    const currentMonthLabel = `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`;
+    const previousMonthLabel = `${MONTH_NAMES[prevMonth - 1]} ${prevYear}`;
+
+    const chart = page.getByRole("img", { name: /daily premium requests bar chart/i });
+    await expect(chart).toBeVisible();
+    await expect(chart.getByText(currentMonthLabel)).toBeVisible();
+    await expect(chart.getByText(previousMonthLabel)).toBeVisible();
+  });
+
+  test("should not show chart legend when no previous month usage data exists", async ({ page }) => {
+    const now = new Date();
+    const currentMonth = now.getUTCMonth() + 1;
+    const currentYear = now.getUTCFullYear();
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+    await seedDashboardSummary();
+    const seatId = await seedCopilotSeat({ githubUsername: "no-legend-user" });
+    await seedCopilotUsage({ seatId, day: 1, month: currentMonth, year: currentYear });
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/dashboard");
+
+    const currentMonthLabel = `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`;
+    const previousMonthLabel = `${MONTH_NAMES[prevMonth - 1]} ${prevYear}`;
+
+    const chart = page.getByRole("img", { name: /daily premium requests bar chart/i });
+    await expect(chart).toBeVisible();
+    await expect(chart.getByText(currentMonthLabel)).toBeHidden();
+    await expect(chart.getByText(previousMonthLabel)).toBeHidden();
+  });
 });
 
 const MONTH_NAMES = [

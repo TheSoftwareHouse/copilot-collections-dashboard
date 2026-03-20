@@ -69,6 +69,24 @@ export async function GET(request: NextRequest) {
         totalRequests: Number(row.totalRequests),
       }));
 
+      const previousDailyRows: { day: number; totalRequests: string }[] =
+        await dataSource.query(
+          `SELECT
+             cu."day",
+             SUM((item->>'grossQuantity')::numeric) AS "totalRequests"
+           FROM copilot_usage cu,
+                jsonb_array_elements(cu."usageItems") AS item
+           WHERE cu."month" = $1 AND cu."year" = $2
+           GROUP BY cu."day"
+           ORDER BY cu."day" ASC`,
+          [prevMonth, prevYear],
+        );
+
+      const previousDailyUsage = previousDailyRows.map((row) => ({
+        day: row.day,
+        totalRequests: Number(row.totalRequests),
+      }));
+
       return NextResponse.json({
         totalSeats: summary.totalSeats,
         activeSeats: summary.activeSeats,
@@ -86,6 +104,7 @@ export async function GET(request: NextRequest) {
         previousIncludedPremiumRequests,
         previousIncludedPremiumRequestsUsed,
         dailyUsage,
+        previousDailyUsage,
         month,
         year,
       });
@@ -109,6 +128,7 @@ export async function GET(request: NextRequest) {
       previousIncludedPremiumRequests: null,
       previousIncludedPremiumRequestsUsed: null,
       dailyUsage: [],
+      previousDailyUsage: [],
       month,
       year,
     });

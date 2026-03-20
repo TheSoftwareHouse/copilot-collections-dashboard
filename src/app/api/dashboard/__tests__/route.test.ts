@@ -238,6 +238,7 @@ describe("GET /api/dashboard", () => {
     expect(json).toHaveProperty("mostActiveUsers");
     expect(json).toHaveProperty("leastActiveUsers");
     expect(json).toHaveProperty("dailyUsage");
+    expect(json).toHaveProperty("previousDailyUsage");
     expect(json).toHaveProperty("month");
     expect(json).toHaveProperty("year");
   });
@@ -396,5 +397,106 @@ describe("GET /api/dashboard", () => {
     const json = await response.json();
 
     expect(json.dailyUsage).toEqual([]);
+  });
+
+  it("previousDailyUsage is empty array when summary exists but no copilot_usage rows for previous month", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 2, year: 2026 });
+
+    const seat = await seedSeat({ githubUsername: "user-current" });
+    await seedUsage({
+      seatId: seat.id,
+      day: 5,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 100, grossAmount: 10, netAmount: 8, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 100 },
+      ],
+    });
+
+    const request = makeGetRequest({ month: "2", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.dailyUsage).toHaveLength(1);
+    expect(json.previousDailyUsage).toEqual([]);
+  });
+
+  it("previousDailyUsage returns aggregated data for the previous month", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 3, year: 2026 });
+
+    const seat1 = await seedSeat({ githubUsername: "user-prev-a" });
+    const seat2 = await seedSeat({ githubUsername: "user-prev-b" });
+
+    // Previous month usage (February 2026)
+    await seedUsage({
+      seatId: seat1.id,
+      day: 10,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 80, grossAmount: 8, netAmount: 6, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 80 },
+      ],
+    });
+    await seedUsage({
+      seatId: seat2.id,
+      day: 10,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 40, grossAmount: 4, netAmount: 3, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 40 },
+      ],
+    });
+    await seedUsage({
+      seatId: seat1.id,
+      day: 15,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 60, grossAmount: 6, netAmount: 5, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 60 },
+      ],
+    });
+
+    const request = makeGetRequest({ month: "3", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.previousDailyUsage).toHaveLength(2);
+    expect(json.previousDailyUsage[0]).toEqual({ day: 10, totalRequests: 120 });
+    expect(json.previousDailyUsage[1]).toEqual({ day: 15, totalRequests: 60 });
+  });
+
+  it("previousDailyUsage handles year boundary — January returns December of previous year", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 1, year: 2026 });
+
+    const seat = await seedSeat({ githubUsername: "user-dec" });
+    await seedUsage({
+      seatId: seat.id,
+      day: 20,
+      month: 12,
+      year: 2025,
+      usageItems: [
+        { grossQuantity: 200, grossAmount: 20, netAmount: 16, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 200 },
+      ],
+    });
+
+    const request = makeGetRequest({ month: "1", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.previousDailyUsage).toHaveLength(1);
+    expect(json.previousDailyUsage[0]).toEqual({ day: 20, totalRequests: 200 });
+  });
+
+  it("previousDailyUsage is empty array in empty-state response", async () => {
+    await seedAuthSession();
+
+    const request = makeGetRequest({ month: "6", year: "2025" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.previousDailyUsage).toEqual([]);
   });
 });

@@ -37,6 +37,7 @@ interface DashboardData {
   previousIncludedPremiumRequests: number | null;
   previousIncludedPremiumRequestsUsed: number | null;
   dailyUsage: Array<{ day: number; totalRequests: number }>;
+  previousDailyUsage: Array<{ day: number; totalRequests: number }>;
   month: number;
   year: number;
 }
@@ -238,7 +239,13 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
             </h2>
           </div>
           <div className="p-6">
-            <DashboardDailyChart dailyUsage={data.dailyUsage} daysInMonth={daysInMonth} />
+            <DashboardDailyChart
+              dailyUsage={data.dailyUsage}
+              previousDailyUsage={data.previousDailyUsage}
+              daysInMonth={daysInMonth}
+              month={data.month}
+              year={data.year}
+            />
           </div>
         </div>
       )}
