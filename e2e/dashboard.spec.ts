@@ -103,8 +103,73 @@ async function seedSummaryForMonth(
   await client.end();
 }
 
+async function seedCopilotSeat(
+  overrides: {
+    githubUsername?: string;
+    githubUserId?: number;
+    status?: string;
+  } = {},
+): Promise<number> {
+  const {
+    githubUsername = `dashboard-seat-${Date.now()}`,
+    githubUserId = Math.floor(Math.random() * 1_000_000),
+    status = "active",
+  } = overrides;
+  const client = await getClient();
+  const result = await client.query(
+    `INSERT INTO copilot_seat ("githubUsername", "githubUserId", "status")
+     VALUES ($1, $2, $3)
+     RETURNING id`,
+    [githubUsername, githubUserId, status],
+  );
+  await client.end();
+  return result.rows[0].id;
+}
+
+async function seedCopilotUsage(
+  overrides: {
+    seatId: number;
+    day?: number;
+    month?: number;
+    year?: number;
+    usageItems?: unknown[];
+  },
+): Promise<void> {
+  const now = new Date();
+  const {
+    seatId,
+    day = 1,
+    month = now.getUTCMonth() + 1,
+    year = now.getUTCFullYear(),
+    usageItems = [
+      {
+        product: "Copilot",
+        sku: "Premium",
+        model: "GPT-4o",
+        unitType: "requests",
+        pricePerUnit: 0.04,
+        grossQuantity: 50,
+        grossAmount: 2.0,
+        discountQuantity: 0,
+        discountAmount: 0,
+        netQuantity: 50,
+        netAmount: 2.0,
+      },
+    ],
+  } = overrides;
+  const client = await getClient();
+  await client.query(
+    `INSERT INTO copilot_usage ("seatId", "day", "month", "year", "usageItems")
+     VALUES ($1, $2, $3, $4, $5::jsonb)`,
+    [seatId, day, month, year, JSON.stringify(usageItems)],
+  );
+  await client.end();
+}
+
 async function clearAll() {
   const client = await getClient();
+  await client.query("DELETE FROM copilot_usage");
+  await client.query("DELETE FROM copilot_seat");
   await client.query("DELETE FROM dashboard_monthly_summary");
   await client.query("DELETE FROM session");
   await client.query("DELETE FROM app_user");
@@ -397,6 +462,34 @@ test.describe("Dashboard", () => {
     const select = page.getByLabel("Month");
     await select.selectOption(`${monthB}-${yearB}`);
     await expect(card.getByText("↓ 12% vs last month")).toBeVisible();
+  });
+
+  test("shows Daily Premium Requests chart when usage data exists", async ({ page }) => {
+    const now = new Date();
+    const month = now.getUTCMonth() + 1;
+    const year = now.getUTCFullYear();
+
+    await seedDashboardSummary();
+    const seatId = await seedCopilotSeat({ githubUsername: "chart-user" });
+    await seedCopilotUsage({ seatId, day: 1, month, year });
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/dashboard");
+
+    await expect(
+      page.getByRole("heading", { name: /daily premium requests/i }),
+    ).toBeVisible();
+  });
+
+  test("hides Daily Premium Requests chart when no usage data exists", async ({ page }) => {
+    await seedDashboardSummary();
+
+    await loginViaApi(page, "admin", "password123");
+    await page.goto("/dashboard");
+
+    await expect(
+      page.getByRole("heading", { name: /daily premium requests/i }),
+    ).toBeHidden();
   });
 });
 

@@ -4,6 +4,11 @@ import { DataSource } from "typeorm";
 import { NextRequest } from "next/server";
 import { DashboardMonthlySummaryEntity } from "@/entities/dashboard-monthly-summary.entity";
 import type { DashboardMonthlySummary } from "@/entities/dashboard-monthly-summary.entity";
+import { CopilotSeatEntity } from "@/entities/copilot-seat.entity";
+import type { CopilotSeat } from "@/entities/copilot-seat.entity";
+import { CopilotUsageEntity } from "@/entities/copilot-usage.entity";
+import type { CopilotUsage } from "@/entities/copilot-usage.entity";
+import { SeatStatus } from "@/entities/enums";
 import {
   getTestDataSource,
   cleanDatabase,
@@ -75,6 +80,25 @@ async function seedSummary(
     ],
     ...overrides,
   } as Partial<DashboardMonthlySummary>);
+}
+
+async function seedSeat(
+  overrides: Partial<CopilotSeat> & { githubUsername: string },
+): Promise<CopilotSeat> {
+  const seatRepo = testDs.getRepository(CopilotSeatEntity);
+  return seatRepo.save({
+    githubUserId: Math.floor(Math.random() * 1000000),
+    status: SeatStatus.ACTIVE,
+    assignedAt: new Date(),
+    ...overrides,
+  } as Partial<CopilotSeat>);
+}
+
+async function seedUsage(
+  overrides: Partial<CopilotUsage> & { seatId: number; day: number; month: number; year: number; usageItems: unknown[] },
+): Promise<CopilotUsage> {
+  const usageRepo = testDs.getRepository(CopilotUsageEntity);
+  return usageRepo.save(overrides as Partial<CopilotUsage>);
 }
 
 describe("GET /api/dashboard", () => {
@@ -213,6 +237,7 @@ describe("GET /api/dashboard", () => {
     expect(json).toHaveProperty("modelUsage");
     expect(json).toHaveProperty("mostActiveUsers");
     expect(json).toHaveProperty("leastActiveUsers");
+    expect(json).toHaveProperty("dailyUsage");
     expect(json).toHaveProperty("month");
     expect(json).toHaveProperty("year");
   });
@@ -281,5 +306,95 @@ describe("GET /api/dashboard", () => {
 
     expect(json.previousIncludedPremiumRequests).toBeNull();
     expect(json.previousIncludedPremiumRequestsUsed).toBeNull();
+  });
+
+  it("dailyUsage is empty array when summary exists but no copilot_usage rows", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 2, year: 2026 });
+
+    const request = makeGetRequest({ month: "2", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.dailyUsage).toEqual([]);
+  });
+
+  it("dailyUsage aggregates across multiple seats for the same day", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 2, year: 2026 });
+
+    const seat1 = await seedSeat({ githubUsername: "user-a" });
+    const seat2 = await seedSeat({ githubUsername: "user-b" });
+
+    await seedUsage({
+      seatId: seat1.id,
+      day: 5,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 100, grossAmount: 10, netAmount: 8, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 100 },
+      ],
+    });
+    await seedUsage({
+      seatId: seat2.id,
+      day: 5,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 50, grossAmount: 5, netAmount: 4, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 50 },
+      ],
+    });
+
+    const request = makeGetRequest({ month: "2", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.dailyUsage).toHaveLength(1);
+    expect(json.dailyUsage[0].day).toBe(5);
+    expect(json.dailyUsage[0].totalRequests).toBe(150);
+  });
+
+  it("dailyUsage returns separate entries per day ordered by day ASC", async () => {
+    await seedAuthSession();
+    await seedSummary({ month: 2, year: 2026 });
+
+    const seat = await seedSeat({ githubUsername: "user-c" });
+
+    await seedUsage({
+      seatId: seat.id,
+      day: 10,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 30, grossAmount: 3, netAmount: 2, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 30 },
+      ],
+    });
+    await seedUsage({
+      seatId: seat.id,
+      day: 3,
+      month: 2,
+      year: 2026,
+      usageItems: [
+        { grossQuantity: 20, grossAmount: 2, netAmount: 1, model: "GPT-4o", product: "chat", sku: "sku1", unitType: "request", pricePerUnit: 0.1, discountQuantity: 0, discountAmount: 0, netQuantity: 20 },
+      ],
+    });
+
+    const request = makeGetRequest({ month: "2", year: "2026" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.dailyUsage).toHaveLength(2);
+    expect(json.dailyUsage[0]).toEqual({ day: 3, totalRequests: 20 });
+    expect(json.dailyUsage[1]).toEqual({ day: 10, totalRequests: 30 });
+  });
+
+  it("dailyUsage is empty array in empty-state response (no summary)", async () => {
+    await seedAuthSession();
+
+    const request = makeGetRequest({ month: "6", year: "2025" });
+    const response = await GET(request as never);
+    const json = await response.json();
+
+    expect(json.dailyUsage).toEqual([]);
   });
 });

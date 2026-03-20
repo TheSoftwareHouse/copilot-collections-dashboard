@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { calcUsagePercent, getAllowanceThresholdColor, calcAllowanceTrend } from "@/lib/usage-helpers";
 import { UsageStatusIndicator } from "@/components/usage/UsageStatusIndicator";
+import DashboardDailyChart from "@/components/dashboard/DashboardDailyChart";
 
 interface ModelUsageEntry {
   model: string;
@@ -35,6 +36,7 @@ interface DashboardData {
   premiumRequestsPerSeat: number;
   previousIncludedPremiumRequests: number | null;
   previousIncludedPremiumRequestsUsed: number | null;
+  dailyUsage: Array<{ day: number; totalRequests: number }>;
   month: number;
   year: number;
 }
@@ -141,6 +143,8 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
     data.modelUsage.length === 0 &&
     data.mostActiveUsers.length === 0;
 
+  const daysInMonth = new Date(data.year, data.month, 0).getDate();
+
   if (isEmpty) {
     return (
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -224,6 +228,20 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
           )}
         </div>
       </div>
+
+      {/* Daily Premium Requests Chart */}
+      {data.dailyUsage.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-200 px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Daily Premium Requests
+            </h2>
+          </div>
+          <div className="p-6">
+            <DashboardDailyChart dailyUsage={data.dailyUsage} daysInMonth={daysInMonth} />
+          </div>
+        </div>
+      )}
 
       {/* Premium Requests Overview */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
