@@ -9,6 +9,7 @@ import UserManagementPanel from "@/components/users/UserManagementPanel";
 import AzureUserManagementNotice from "@/components/users/AzureUserManagementNotice";
 import SeatListPanel from "@/components/seats/SeatListPanel";
 import SeatJobStatusCards from "@/components/seats/SeatJobStatusCards";
+import LowUsageSeatsTable from "@/components/seats/LowUsageSeatsTable";
 import type { AuthMethod } from "@/lib/auth-config";
 
 const TABS = [
@@ -137,6 +138,7 @@ export default function ManagementPageLayout({ authMethod }: { authMethod: AuthM
           aria-labelledby="tab-seats"
           className="space-y-6"
         >
+          <LowUsageSeatsTable />
           <SeatJobStatusCards />
           <SeatListPanel />
         </div>
