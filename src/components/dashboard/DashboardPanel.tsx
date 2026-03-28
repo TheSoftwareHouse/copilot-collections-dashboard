@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { calcUsagePercent, getAllowanceThresholdColor, calcAllowanceTrend } from "@/lib/usage-helpers";
 import { UsageStatusIndicator } from "@/components/usage/UsageStatusIndicator";
 import DashboardDailyChart from "@/components/dashboard/DashboardDailyChart";
@@ -55,6 +56,7 @@ function formatUserName(user: UserActivityEntry): string {
 }
 
 export default function DashboardPanel({ month, year }: DashboardPanelProps) {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +147,10 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
     data.mostActiveUsers.length === 0;
 
   const daysInMonth = new Date(data.year, data.month, 0).getDate();
+
+  const handleBarClick = (day: number, clickMonth: number, clickYear: number) => {
+    router.push(`/dashboard/daily/${day}?month=${clickMonth}&year=${clickYear}`);
+  };
 
   if (isEmpty) {
     return (
@@ -245,6 +251,7 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
               daysInMonth={daysInMonth}
               month={data.month}
               year={data.year}
+              onBarClick={handleBarClick}
             />
           </div>
         </div>

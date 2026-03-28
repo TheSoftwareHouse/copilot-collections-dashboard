@@ -18,6 +18,7 @@ interface DashboardDailyChartProps {
   daysInMonth: number;
   month: number;
   year: number;
+  onBarClick?: (day: number, month: number, year: number) => void;
 }
 
 interface ComparisonTooltipProps {
@@ -72,6 +73,7 @@ export default function DashboardDailyChart({
   daysInMonth,
   month,
   year,
+  onBarClick,
 }: DashboardDailyChartProps) {
   const usageByDay = new Map(dailyUsage.map((d) => [d.day, d]));
   const previousUsageByDay = new Map(previousDailyUsage.map((d) => [d.day, d]));
@@ -136,8 +138,30 @@ export default function DashboardDailyChart({
                 </ul>
               )}
             />
-            <Bar dataKey="previousTotalRequests" fill="#93c5fd" barSize={24} name={previousMonthLabel} />
-            <Bar dataKey="totalRequests" fill="#2563eb" barSize={14} name={currentMonthLabel} />
+            <Bar
+              dataKey="previousTotalRequests"
+              fill="#93c5fd"
+              barSize={24}
+              name={previousMonthLabel}
+              cursor={onBarClick ? "pointer" : undefined}
+              onClick={(_data: unknown, index: number) => {
+                if (onBarClick && chartData[index]) {
+                  onBarClick(chartData[index].day, prevMonth, prevYear);
+                }
+              }}
+            />
+            <Bar
+              dataKey="totalRequests"
+              fill="#2563eb"
+              barSize={14}
+              name={currentMonthLabel}
+              cursor={onBarClick ? "pointer" : undefined}
+              onClick={(_data: unknown, index: number) => {
+                if (onBarClick && chartData[index]) {
+                  onBarClick(chartData[index].day, month, year);
+                }
+              }}
+            />
           </BarChart>
         ) : (
           <BarChart data={chartData}>
@@ -151,7 +175,16 @@ export default function DashboardDailyChart({
               ]}
               labelFormatter={(label) => `Day ${label}`}
             />
-            <Bar dataKey="totalRequests" fill="#2563eb" />
+            <Bar
+              dataKey="totalRequests"
+              fill="#2563eb"
+              cursor={onBarClick ? "pointer" : undefined}
+              onClick={(_data: unknown, index: number) => {
+                if (onBarClick && chartData[index]) {
+                  onBarClick(chartData[index].day, month, year);
+                }
+              }}
+            />
           </BarChart>
         )}
       </ResponsiveContainer>
