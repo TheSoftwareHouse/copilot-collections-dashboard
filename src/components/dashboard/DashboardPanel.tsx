@@ -345,7 +345,9 @@ export default function DashboardPanel({ month, year }: DashboardPanelProps) {
                 {data.modelUsage.map((model) => (
                   <tr
                     key={model.model}
-                    className="border-b border-gray-100 last:border-0"
+                    className="border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50"
+                    role="link"
+                    onClick={() => router.push(`/dashboard/model/${encodeURIComponent(model.model)}?month=${data.month}&year=${data.year}`)}
                   >
                     <td className="px-6 py-3 text-gray-900">{model.model}</td>
                     <td className="px-6 py-3 text-right text-gray-700">
